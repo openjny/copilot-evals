@@ -4,7 +4,7 @@ vars:
 
 runner:
   epochs: 1
-  timeout_seconds: 120
+  timeout_seconds: 300
   model: claude-sonnet-4
   max_turns: 20
   container_image_base: copilot-eval

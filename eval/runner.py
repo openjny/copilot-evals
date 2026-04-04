@@ -107,19 +107,19 @@ def run_one(
     ]
 
     # Mount Copilot home for auth
-    copilot_home = Path(os.environ.get("COPILOT_HOME", Path.home() / ".copilot"))
+    copilot_home = Path(os.environ.get("COPILOT_HOME", Path.home() / ".copilot")).resolve()
     if copilot_home.is_dir():
         cmd.extend(["-v", f"{copilot_home}:/copilot-home-src:ro"])
 
     # Mount fixture if exists
     fixture_name = pattern.fixture or pattern.name
-    fixture_dir = config.config_dir / "fixtures" / fixture_name
+    fixture_dir = (config.config_dir / "fixtures" / fixture_name).resolve()
     if fixture_dir.is_dir():
         cmd.extend(["-v", f"{fixture_dir}:/workspace:ro"])
 
     # Mount run/setup script if variant has one
     if variant.run_script:
-        run_script_path = config.project_dir / variant.run_script
+        run_script_path = (config.project_dir / variant.run_script).resolve()
         if run_script_path.exists():
             cmd.extend(["-v", f"{run_script_path}:/tmp/eval-setup.sh:ro"])
             cmd.extend(["-e", "EVAL_SETUP_SCRIPT=/tmp/eval-setup.sh"])
