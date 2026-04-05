@@ -57,6 +57,7 @@ class Task:
     enabled: bool = True
     fixture: str | None = None
     timeout_seconds: int | None = None
+    health_check: str | None = None
     vars: dict[str, str] = field(default_factory=dict)
     hooks: Hooks = field(default_factory=Hooks)
     evaluators: list[Evaluator] = field(default_factory=list)
@@ -177,6 +178,7 @@ def _parse_pattern(p: dict, fallback_name: str = "") -> Task:
         enabled=p.get("enabled", True),
         fixture=p.get("fixture"),
         timeout_seconds=p.get("timeout_seconds"),
+        health_check=p.get("health_check"),
         vars={str(k): str(v) for k, v in (p.get("vars") or {}).items()},
         hooks=_parse_hooks(hooks_raw),
         evaluators=_parse_evaluators(evaluators_raw),

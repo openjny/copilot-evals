@@ -30,11 +30,12 @@ class RunResult:
     run_id: str
     log_file: Path
     exit_code: int
+    status: str = "completed"  # completed | setup_failed | timeout
     scores: list[EvalScore] = field(default_factory=list)
 
     @property
     def passed(self) -> bool:
-        return all(s.passed for s in self.scores) if self.scores else True
+        return self.status == "completed" and (all(s.passed for s in self.scores) if self.scores else True)
 
 
 def get_github_token() -> str:
@@ -57,6 +58,16 @@ def run_one(
     print(f"--- [{task.name}] epoch={epoch} variant={variant.name} test_id={test_id[:8]}")
 
     _run_hook(task.hooks.before_run, config, task, log_file, "before_run")
+
+    # Health check: verify environment is ready before running Copilot
+    if task.health_check:
+        if not _run_health_check(task.health_check, config, task, log_file):
+            print(f"    ✗ Health check failed — skipping run")
+            return RunResult(
+                task=task.name, variant=variant.name, epoch=epoch,
+                test_id=test_id, run_id=run_id, log_file=log_file,
+                exit_code=-1, status="setup_failed",
+            )
 
     prompt = config.resolve_prompt(task)
     image = config.image_name(variant)
@@ -128,6 +139,22 @@ def _run_hook(script: str | None, config: Config, task: Task, log_file: Path, la
     env = {**os.environ, **_load_env_file(config.env_file), **{f"EVAL_{k.upper()}": v for k, v in merged_vars.items()}}
     with open(log_file, "a") as lf:
         subprocess.run(["bash", str(resolved)], stdout=lf, stderr=subprocess.STDOUT, env=env)
+
+
+def _run_health_check(script: str, config: Config, task: Task, log_file: Path) -> bool:
+    """Run health check script. Returns True if environment is ready."""
+    resolved = (config.config_dir / script).resolve()
+    if not resolved.exists():
+        resolved = (config.project_dir / script).resolve()
+    if not resolved.exists():
+        print(f"    WARNING: health_check script not found: {script}")
+        return True  # skip check if script missing
+    print(f"    Running health_check...")
+    merged_vars = config.resolve_vars(task)
+    env = {**os.environ, **_load_env_file(config.env_file), **{f"EVAL_{k.upper()}": v for k, v in merged_vars.items()}}
+    with open(log_file, "a") as lf:
+        proc = subprocess.run(["bash", str(resolved)], stdout=lf, stderr=subprocess.STDOUT, env=env)
+    return proc.returncode == 0
 
 
 def _run_evaluators(task: Task, config: Config, log_file: Path, token: str) -> list[EvalScore]:
