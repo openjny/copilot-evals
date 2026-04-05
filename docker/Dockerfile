@@ -30,5 +30,8 @@ RUN --mount=type=secret,id=github_token \
 
 LABEL variant=${VARIANT_NAME}
 
+# Azure MCP Server requires ICU-invariant mode on slim images
+ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=true
+
 WORKDIR /workspace
 ENTRYPOINT ["/entrypoint.sh"]
