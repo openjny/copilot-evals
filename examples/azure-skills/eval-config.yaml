@@ -75,6 +75,9 @@ tasks:
 
   - name: diagnostics
     prompt: "There is an App Service in resource group {resource_group} that seems to be having issues. Find it, diagnose the application health, and check for any errors or warnings in the logs."
+    hooks:
+      before_run: scripts/inject-error.sh
+      after_run: scripts/restore-app.sh
     evaluators:
       - name: diagnostic_depth
         type: judge
