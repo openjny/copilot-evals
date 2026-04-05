@@ -197,22 +197,42 @@ Results from a full eval run (3 tasks × 2 variants × 3 epochs = 18 runs, model
 | `read_bash` | 9 |
 | `view` | 9 |
 
-### Judge Scores (median, 1-10 scale)
+### Judge Scores by Task (median, 1-10 scale)
 
-| Judge | azure-skills | baseline | Winner |
-|-------|:-----------:|:--------:|--------|
+#### compliance-audit
+
+| Evaluator | azure-skills | baseline | Winner |
+|-----------|:-----------:|:--------:|--------|
 | methodology | 7 | **8** | baseline |
 | coverage | 6 | **8** | baseline |
-| remediation_quality | 4 | **7** | baseline |
 | finding_accuracy | 5 | **7** | baseline |
-| tool_usage | 6 | **7** | baseline |
-| verification | 1 | **7** | baseline |
-| diagnostic_depth | 5 | **6** | baseline |
+| remediation_quality | 4 | **7** | baseline |
+| verify | 1 | 1 | tie |
+
+Baseline's brute-force approach (`az` CLI command per resource) produces more thorough and accurate audits. azure-skills relies on `azure-extension_azqr` for bulk checks, which is faster but less granular.
+
+#### app-deploy
+
+| Evaluator | azure-skills | baseline | Winner |
+|-----------|:-----------:|:--------:|--------|
 | deployment_approach | **4** | 3 | azure-skills |
 | completeness | 2 | **3** | baseline |
-| actionability | 2 | 2 | tie |
+| verification | 1 | **7** | baseline |
+| verify | 0 | 0 | tie |
+
+Baseline stands out on `verification` (7 vs 1) — it actually checks the deployed app with `curl`/`az webapp show`. azure-skills deploys but rarely verifies. Both struggle with actual deployment success (`verify` = 0).
+
+#### diagnostics
+
+| Evaluator | azure-skills | baseline | Winner |
+|-----------|:-----------:|:--------:|--------|
+| diagnostic_depth | 5 | **6** | baseline |
+| tool_usage | **6** | 7 | baseline |
 | root_cause | 2 | 2 | tie |
+| actionability | 2 | 2 | tie |
 | verify | 1 | 1 | tie |
+
+Closest results of the three tasks. Both variants struggle with `root_cause` (median 2/10) — neither reliably identifies the intentional issues (wrong startup command + missing module). azure-skills uses MCP tools (`azure-applens`, `azure-resourcehealth`, `azure-applicationinsights`) for structured diagnostics, while baseline uses more `az` CLI commands.
 
 ### Key Insights
 
@@ -220,10 +240,10 @@ Results from a full eval run (3 tasks × 2 variants × 3 epochs = 18 runs, model
 
 2. **Faster tool execution**: azure-skills tool duration is 36% faster (54.5s vs 85.4s) — MCP tools return structured results directly, avoiding the overhead of parsing `az` CLI output.
 
-3. **Baseline wins on quality**: baseline consistently outscores azure-skills on judge evaluators. Particularly notable: `verification` (7 vs 1), `remediation_quality` (7 vs 4), and `coverage` (8 vs 6). The brute-force `az` CLI approach produces more thorough, verifiable results.
+3. **Baseline wins on quality across all tasks**: baseline consistently outscores azure-skills, especially on compliance-audit where thoroughness matters most. The `az` CLI + shell approach gives more granular control over what gets inspected.
 
-4. **deployment_approach slight edge for plugin**: azure-skills scores 4 vs 3 — the structured deploy workflow helps, but the advantage is smaller than expected.
+4. **verification is the biggest gap**: baseline scores 7 vs 1 on app-deploy verification. This suggests azure-skills' deploy workflow doesn't include post-deployment checks — a potential gap in the plugin's `azure-deploy` skill.
 
-5. **Input token cost**: azure-skills uses 86% more input tokens (860K vs 461K) due to MCP tool overhead and skill definitions. This is a significant efficiency concern despite fewer turns.
+5. **diagnostics is the most balanced task**: scores are close (within 1-2 points), and both variants fail at root cause identification equally. This task may need a stronger signal (more specific failure, more epochs).
 
-6. **High variance**: Per-run results vary significantly (e.g., azure-skills epoch 2: 68s–228s duration). 3 epochs provide directional signal but not statistical confidence.
+6. **Input token cost**: azure-skills uses 86% more input tokens (860K vs 461K) due to MCP tool descriptions and skill definitions loaded into context.
