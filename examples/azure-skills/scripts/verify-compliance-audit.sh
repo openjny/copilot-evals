@@ -19,10 +19,10 @@ check() {
   local label="$1" actual="$2" expected="$3"
   if [[ "$actual" == "$expected" ]]; then
     echo "  ✓ $label = $actual"
-    ((PASS++))
+    PASS=$((PASS + 1))
   else
     echo "  ✗ $label = $actual (expected: $expected)"
-    ((FAIL++))
+    FAIL=$((FAIL + 1))
   fi
 }
 
@@ -38,7 +38,7 @@ if [[ -n "$APP_NAME" ]]; then
   check "minTlsVersion" "$MIN_TLS" "1.2"
 else
   echo "[verify] WARNING: No App Service found"
-  ((FAIL++))
+  FAIL=$((FAIL + 1))
 fi
 
 # --- Storage Account: HTTPS-only, no public blob access, public network disabled ---
@@ -55,7 +55,7 @@ if [[ -n "$STORAGE_NAME" ]]; then
   check "minimumTlsVersion" "$MIN_TLS_STORAGE" "TLS1_2"
 else
   echo "[verify] WARNING: No Storage Account found"
-  ((FAIL++))
+  FAIL=$((FAIL + 1))
 fi
 
 # --- SQL Server: Entra-only auth, public network disabled, TLS 1.2 ---
@@ -65,12 +65,12 @@ if [[ -n "$SQL_NAME" ]]; then
   AAD_ONLY=$(az sql server show -g "$RG" -n "$SQL_NAME" --query 'administrators.azureAdOnlyAuthentication' -o tsv 2>/dev/null)
   SQL_PUBLIC=$(az sql server show -g "$RG" -n "$SQL_NAME" --query 'publicNetworkAccess' -o tsv 2>/dev/null)
   SQL_TLS=$(az sql server show -g "$RG" -n "$SQL_NAME" --query 'minimalTlsVersion' -o tsv 2>/dev/null)
-  check "azureAdOnlyAuthentication" "$AAD_ONLY" "True"
+  check "azureAdOnlyAuthentication" "$AAD_ONLY" "true"
   check "publicNetworkAccess" "$SQL_PUBLIC" "Disabled"
   check "minimalTlsVersion" "$SQL_TLS" "1.2"
 else
   echo "[verify] WARNING: No SQL Server found"
-  ((FAIL++))
+  FAIL=$((FAIL + 1))
 fi
 
 # --- Private Endpoints exist ---
@@ -78,10 +78,10 @@ PE_COUNT=$(az network private-endpoint list -g "$RG" --query 'length(@)' -o tsv 
 echo "[verify] Private Endpoints: $PE_COUNT"
 if [[ "$PE_COUNT" -ge 2 ]]; then
   echo "  ✓ At least 2 private endpoints found"
-  ((PASS++))
+  PASS=$((PASS + 1))
 else
   echo "  ✗ Expected at least 2 private endpoints, found $PE_COUNT"
-  ((FAIL++))
+  FAIL=$((FAIL + 1))
 fi
 
 # --- Summary ---

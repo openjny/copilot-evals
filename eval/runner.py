@@ -183,7 +183,7 @@ def _eval_script(ev: Evaluator, config: Config, log_file: Path) -> EvalScore | N
     if not resolved.exists():
         return None
     print(f"    Evaluating: {ev.name} (script)...")
-    env = {**os.environ, **{f"EVAL_{k.upper()}": v for k, v in config.vars.items()}}
+    env = {**os.environ, **_load_env_file(config.env_file), **{f"EVAL_{k.upper()}": v for k, v in config.vars.items()}}
     with open(log_file, "a") as lf:
         proc = subprocess.run([str(resolved)], stdout=lf, stderr=subprocess.STDOUT, env=env)
     passed = proc.returncode == 0
