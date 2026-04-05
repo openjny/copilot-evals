@@ -88,7 +88,23 @@ examples/azure-skills/
    # Set AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_SUBSCRIPTION_ID
    ```
 
-2. Grant the SP Contributor + SQL Admin permissions on the resource group
+2. Create resource groups and grant the SP permissions:
+   ```bash
+   # Each task uses its own resource group for parallel execution
+   SUBSCRIPTION_ID="<your-subscription-id>"
+   SP_APP_ID="<your-sp-client-id>"
+
+   for RG in rg-copilot-eval-compliance rg-copilot-eval-deploy rg-copilot-eval-diag; do
+     az group create --name "$RG" --location southeastasia
+     az role assignment create \
+       --assignee "$SP_APP_ID" \
+       --role Contributor \
+       --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RG"
+   done
+
+   # SQL Server Entra admin requires Directory Readers or the SP's object ID
+   SP_OBJECT_ID=$(az ad sp show --id "$SP_APP_ID" --query id -o tsv)
+   ```
 
 3. Build Docker images:
    ```bash
@@ -103,14 +119,23 @@ examples/azure-skills/
 ## Running
 
 ```bash
-# Run all tasks (epoch=3)
+# Run all tasks in parallel (epoch=3)
 uv run copilot-eval run --config-dir examples/azure-skills --epochs 3
 
 # Run a single task
-uv run copilot-eval run --config-dir examples/azure-skills --task resource-explorer --epochs 3
+uv run copilot-eval run --config-dir examples/azure-skills --task compliance-audit --epochs 3
 
 # Analyze results
 uv run copilot-eval analyze --run-id <RUN_ID> -o markdown
+```
+
+## Cleanup
+
+```bash
+# Delete all eval resource groups after testing
+for RG in rg-copilot-eval-compliance rg-copilot-eval-deploy rg-copilot-eval-diag; do
+  az group delete --name "$RG" --yes --no-wait
+done
 ```
 
 ## Evaluation Methodology

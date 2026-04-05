@@ -1,5 +1,4 @@
 vars:
-  resource_group: rg-copilot-eval
   location: southeastasia
 
 runner:
@@ -7,7 +6,7 @@ runner:
   timeout_seconds: 300
   model: claude-sonnet-4
   max_turns: 20
-  parallel: false
+  parallel: true
   container_image_base: copilot-eval
   copilot_version: "1.0.18"
   otel_endpoint: http://host.docker.internal:4318
@@ -25,6 +24,7 @@ variants:
 
 tasks:
   - name: compliance-audit
+    vars: { resource_group: rg-copilot-eval-compliance }
     prompt: "Audit the security and compliance posture of the resources in resource group {resource_group}. Check for encryption settings, network access controls, authentication methods, TLS versions, and any deviations from Azure security best practices. Provide a detailed compliance report with findings and remediation recommendations."
     hooks:
       before_run: scripts/reset-environment.sh
@@ -76,6 +76,7 @@ tasks:
           Output ONLY valid JSON: {"score": N, "reason": "..."}
 
   - name: app-deploy
+    vars: { resource_group: rg-copilot-eval-deploy }
     prompt: "I have a simple Node.js Express app in the current directory. Deploy it to the existing Azure App Service in resource group {resource_group}. The app service plan already exists."
     fixture: app-deploy
     hooks:
@@ -107,6 +108,7 @@ tasks:
           Output ONLY valid JSON: {"score": N, "reason": "..."}
 
   - name: diagnostics
+    vars: { resource_group: rg-copilot-eval-diag }
     prompt: "There is an App Service in resource group {resource_group} that seems to be having issues. Find it, diagnose the application health, and check for any errors or warnings in the logs."
     hooks:
       before_run: scripts/prepare-diagnostics.sh

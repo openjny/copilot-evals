@@ -57,6 +57,7 @@ class Task:
     enabled: bool = True
     fixture: str | None = None
     timeout_seconds: int | None = None
+    vars: dict[str, str] = field(default_factory=dict)
     hooks: Hooks = field(default_factory=Hooks)
     evaluators: list[Evaluator] = field(default_factory=list)
 
@@ -90,9 +91,13 @@ class Config:
     def image_name(self, variant: Variant) -> str:
         return f"{self.runner.container_image_base}:{variant.image_tag}"
 
+    def resolve_vars(self, task: Task) -> dict[str, str]:
+        """Merge global vars with task-level overrides."""
+        return {**self.vars, **task.vars}
+
     def resolve_prompt(self, task: Task) -> str:
         result = task.prompt
-        for key, value in self.vars.items():
+        for key, value in self.resolve_vars(task).items():
             result = result.replace("{" + key + "}", str(value))
         return result
 
@@ -172,6 +177,7 @@ def _parse_pattern(p: dict, fallback_name: str = "") -> Task:
         enabled=p.get("enabled", True),
         fixture=p.get("fixture"),
         timeout_seconds=p.get("timeout_seconds"),
+        vars={str(k): str(v) for k, v in (p.get("vars") or {}).items()},
         hooks=_parse_hooks(hooks_raw),
         evaluators=_parse_evaluators(evaluators_raw),
     )
