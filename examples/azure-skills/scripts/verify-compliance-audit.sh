@@ -10,6 +10,8 @@ set -euo pipefail
 
 RG="${EVAL_RESOURCE_GROUP:?EVAL_RESOURCE_GROUP not set}"
 
+source "$(dirname "${BASH_SOURCE[0]}")/azure-auth.sh"
+
 echo "[verify] Running compliance checks on $RG..."
 
 PASS=0

@@ -10,6 +10,8 @@ set -euo pipefail
 
 RG="${EVAL_RESOURCE_GROUP:?EVAL_RESOURCE_GROUP not set}"
 
+source "$(dirname "${BASH_SOURCE[0]}")/azure-auth.sh"
+
 echo "[verify] Checking diagnostic investigation in $RG..."
 
 APP_NAME=$(az webapp list --resource-group "$RG" --query '[0].name' -o tsv 2>/dev/null)

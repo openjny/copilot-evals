@@ -15,6 +15,9 @@ BICEP_FILE="${SCRIPT_DIR}/../infra/main.bicep"
 
 echo "[reset] Resetting $RG to baseline state..."
 
+# Authenticate with SP credentials
+source "$(dirname "${BASH_SOURCE[0]}")/azure-auth.sh"
+
 # Ensure RG exists
 az group show --name "$RG" &>/dev/null || \
   az group create --name "$RG" --location "$LOCATION" --output none

@@ -9,6 +9,8 @@ set -euo pipefail
 
 RG="${EVAL_RESOURCE_GROUP:?EVAL_RESOURCE_GROUP not set}"
 
+source "$(dirname "${BASH_SOURCE[0]}")/azure-auth.sh"
+
 echo "[verify] Checking deployment to App Service in $RG..."
 
 # Get the App Service name
