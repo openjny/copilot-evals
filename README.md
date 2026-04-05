@@ -8,7 +8,7 @@ Measure the effect of plugins, custom instructions, MCP servers, and other Copil
 
 ```
 eval-config.yaml          Define vars, model, timeouts
-  + patterns/*.yaml        Define eval tasks (prompts, verification, LLM-as-Judge)
+  + tasks/*.yaml        Define eval tasks (prompts, verification, LLM-as-Judge)
   + variants/*.yaml         Define A/B environments (e.g. baseline vs plugin)
        ↓
   python -m eval build     Build Docker images per variant
@@ -55,7 +55,7 @@ uv sync
 uv run python -m eval build --config-dir examples/azure-skills
 
 # Run the eval (1 epoch by default)
-uv run python -m eval run --config-dir examples/azure-skills --pattern resource-explorer
+uv run python -m eval run --config-dir examples/azure-skills --task resource-explorer
 
 # Analyze results
 uv run python -m eval analyze --run-id <run-id>
@@ -75,7 +75,7 @@ uv run python -m eval <command> [options]
 
 | Command | Description |
 |---------|-------------|
-| `list` | List available patterns and variants |
+| `list` | List available tasks and variants |
 | `build` | Build Docker images for all (or specific) variants |
 | `run` | Execute A/B eval runs |
 | `analyze` | Analyze traces from a previous run |
@@ -84,7 +84,7 @@ uv run python -m eval <command> [options]
 
 | Flag | Description | Default |
 |------|-------------|---------|
-| `--pattern` / `-p` | Run a specific pattern | All enabled |
+| `--task` / `-p` | Run a specific task | All enabled |
 | `--epochs` / `-n` | Number of repetitions | 1 |
 | `--dry-run` | Show plan without executing | — |
 | `--config-dir` | Directory with eval-config.yaml | Project root |
@@ -114,7 +114,7 @@ copilot-evals/
 ├── examples/
 │   └── azure-skills/          # Example: Azure Skills Plugin eval
 │       ├── eval-config.yaml
-│       ├── patterns/
+│       ├── tasks/
 │       ├── variants/
 │       ├── scripts/
 │       └── setup/
@@ -129,8 +129,8 @@ copilot-evals/
 ```
 my-eval/
 ├── eval-config.yaml
-├── patterns/
-│   └── my-pattern.yaml
+├── tasks/
+│   └── my-task.yaml
 └── variants/
     ├── baseline.yaml
     └── my-customization.yaml
@@ -149,11 +149,11 @@ runner:
   timeout_seconds: 120
 ```
 
-### 3. Define a pattern
+### 3. Define a task
 
 ```yaml
-# my-eval/patterns/my-pattern.yaml
-name: my-pattern
+# my-eval/tasks/my-task.yaml
+name: my-task
 type: read
 enabled: true
 prompt: "Explain the architecture of {project_name}"

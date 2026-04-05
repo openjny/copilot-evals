@@ -19,26 +19,26 @@ def main() -> None:
 
 
 @main.command()
-@click.option("--pattern", "-p", default=None, help="Run a specific pattern (overrides enabled flag)")
+@click.option("--task", "-p", default=None, help="Run a specific task (overrides enabled flag)")
 @click.option("--epochs", "-n", default=None, type=int, help="Number of epochs (default: from config, typically 1)")
 @click.option("--dry-run", is_flag=True, help="Show plan without executing")
 @click.option("--config-dir", default=None, type=click.Path(exists=True), help="Project directory")
-def run(pattern: str | None, epochs: int | None, dry_run: bool, config_dir: str | None) -> None:
-    """Run A/B eval for one or more patterns."""
+def run(task: str | None, epochs: int | None, dry_run: bool, config_dir: str | None) -> None:
+    """Run A/B eval for one or more tasks."""
     config = load_config(Path(config_dir) if config_dir else None)
     epochs = epochs or config.runner.epochs
 
-    # Select patterns
-    if pattern:
-        p = config.get_pattern(pattern)
+    # Select tasks
+    if task:
+        p = config.get_pattern(task)
         if not p:
-            raise click.ClickException(f"Pattern '{pattern}' not found. Use 'list' to see available patterns.")
-        patterns = [p]
+            raise click.ClickException(f"Task '{task}' not found. Use 'list' to see available tasks.")
+        tasks = [p]
     else:
-        patterns = config.enabled_patterns()
+        tasks = config.enabled_patterns()
 
-    if not patterns:
-        click.echo("No patterns to run. Use --pattern NAME or enable patterns in config.")
+    if not tasks:
+        click.echo("No tasks to run. Use --task NAME or enable tasks in config.")
         return
 
     run_id = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -60,13 +60,13 @@ def run(pattern: str | None, epochs: int | None, dry_run: bool, config_dir: str 
     click.echo(f" Variants:")
     for v in config.variants:
         click.echo(f"   - {v.name}")
-    click.echo(f" Patterns:")
-    for p in patterns:
+    click.echo(f" Tasks:")
+    for p in tasks:
         click.echo(f"   - {p.name}")
     click.echo("=" * 50)
 
     if dry_run:
-        click.echo(f"[dry-run] Would run {epochs} epoch(s) × {len(config.variants)} variants for each pattern.")
+        click.echo(f"[dry-run] Would run {epochs} epoch(s) × {len(config.variants)} variants for each task.")
         return
 
     github_token = get_github_token()
@@ -77,8 +77,8 @@ def run(pattern: str | None, epochs: int | None, dry_run: bool, config_dir: str 
 
         futures = []
         with ThreadPoolExecutor(max_workers=len(config.variants)) as pool:
-            for p in patterns:
-                click.echo(f"\n>>> Pattern: {p.name}")
+            for p in tasks:
+                click.echo(f"\n>>> Task: {p.name}")
                 for epoch in range(1, epochs + 1):
                     for variant in config.variants:
                         futures.append(pool.submit(
@@ -87,9 +87,9 @@ def run(pattern: str | None, epochs: int | None, dry_run: bool, config_dir: str 
             for future in as_completed(futures):
                 results.append(future.result())
     else:
-        for p in patterns:
+        for p in tasks:
             prompt = config.resolve_prompt(p)
-            click.echo(f"\n>>> Pattern: {p.name}")
+            click.echo(f"\n>>> Task: {p.name}")
             click.echo(f">>> Prompt:  {prompt}\n")
 
             for epoch in range(1, epochs + 1):
@@ -188,13 +188,13 @@ def build(variant: str | None, config_dir: str | None) -> None:
 @main.command(name="list")
 @click.option("--config-dir", default=None, type=click.Path(exists=True))
 def list_patterns(config_dir: str | None) -> None:
-    """List available patterns and variants."""
+    """List available tasks and variants."""
     config = load_config(Path(config_dir) if config_dir else None)
 
-    click.echo("Patterns:")
+    click.echo("Tasks:")
     click.echo(f"  {'Name':<25} {'Enabled':<8} {'Evals':>5} Prompt")
     click.echo("  " + "-" * 75)
-    for p in config.patterns:
+    for p in config.tasks:
         prompt_preview = p.prompt[:40] + "..." if len(p.prompt) > 40 else p.prompt
         click.echo(f"  {p.name:<25} {'✓' if p.enabled else '−':<8} {len(p.evaluators):>5} {prompt_preview}")
 

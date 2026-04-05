@@ -9,7 +9,7 @@ import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from eval.config import Config, Evaluator, Pattern, Variant
+from eval.config import Config, Evaluator, Task, Variant
 
 
 @dataclass
@@ -23,7 +23,7 @@ class EvalScore:
 
 @dataclass
 class RunResult:
-    pattern: str
+    task: str
     variant: str
     epoch: int
     test_id: str
@@ -49,19 +49,19 @@ def get_github_token() -> str:
 
 
 def run_one(
-    pattern: Pattern, variant: Variant, epoch: int,
+    task: Task, variant: Variant, epoch: int,
     config: Config, run_id: str, run_dir: Path, github_token: str,
 ) -> RunResult:
     test_id = str(uuid.uuid4())
-    log_file = run_dir / f"{pattern.name}_{variant.name}_epoch{epoch}.log"
-    print(f"--- [{pattern.name}] epoch={epoch} variant={variant.name} test_id={test_id[:8]}")
+    log_file = run_dir / f"{task.name}_{variant.name}_epoch{epoch}.log"
+    print(f"--- [{task.name}] epoch={epoch} variant={variant.name} test_id={test_id[:8]}")
 
-    _run_hook(pattern.hooks.before_run, config, log_file, "before_run")
+    _run_hook(task.hooks.before_run, config, log_file, "before_run")
 
-    prompt = config.resolve_prompt(pattern)
+    prompt = config.resolve_prompt(task)
     image = config.image_name(variant)
     otel_attrs = ",".join([
-        f"eval.test_id={test_id}", f"eval.scenario={pattern.name}",
+        f"eval.test_id={test_id}", f"eval.scenario={task.name}",
         f"eval.variant={variant.name}", f"eval.epoch={epoch}", f"eval.run_id={run_id}",
     ])
     cmd = [
@@ -76,7 +76,7 @@ def run_one(
     copilot_home = Path(os.environ.get("COPILOT_HOME", Path.home() / ".copilot")).resolve()
     if copilot_home.is_dir():
         cmd.extend(["-v", f"{copilot_home}:/copilot-home-src:ro"])
-    fixture_dir = (config.config_dir / "fixtures" / (pattern.fixture or pattern.name)).resolve()
+    fixture_dir = (config.config_dir / "fixtures" / (task.fixture or task.name)).resolve()
     if fixture_dir.is_dir():
         cmd.extend(["-v", f"{fixture_dir}:/workspace:ro"])
     if variant.run_script:
@@ -94,7 +94,7 @@ def run_one(
         copilot_args.extend(["--max-autopilot-continues", str(config.runner.max_turns)])
     if config.runner.output_format == "json":
         copilot_args.extend(["--output-format", "json"])
-    timeout = pattern.timeout_seconds or config.runner.timeout_seconds
+    timeout = task.timeout_seconds or config.runner.timeout_seconds
     cmd.extend([image, "timeout", f"{timeout}s", *copilot_args])
 
     print("    Running copilot in container...")
@@ -102,13 +102,13 @@ def run_one(
         proc = subprocess.run(cmd, stdout=lf, stderr=subprocess.STDOUT)
     _print_summary(log_file)
 
-    _run_hook(pattern.hooks.after_run, config, log_file, "after_run")
+    _run_hook(task.hooks.after_run, config, log_file, "after_run")
 
-    scores = _run_evaluators(pattern, config, log_file, github_token)
+    scores = _run_evaluators(task, config, log_file, github_token)
     _print_scores(scores)
 
     return RunResult(
-        pattern=pattern.name, variant=variant.name, epoch=epoch,
+        task=task.name, variant=variant.name, epoch=epoch,
         test_id=test_id, run_id=run_id, log_file=log_file,
         exit_code=proc.returncode, scores=scores,
     )
@@ -129,9 +129,9 @@ def _run_hook(script: str | None, config: Config, log_file: Path, label: str) ->
         subprocess.run(["bash", str(resolved)], stdout=lf, stderr=subprocess.STDOUT, env=env)
 
 
-def _run_evaluators(pattern: Pattern, config: Config, log_file: Path, token: str) -> list[EvalScore]:
+def _run_evaluators(task: Task, config: Config, log_file: Path, token: str) -> list[EvalScore]:
     scores: list[EvalScore] = []
-    for ev in pattern.evaluators:
+    for ev in task.evaluators:
         s = None
         if ev.type == "judge":
             s = _eval_judge(ev, log_file, token)

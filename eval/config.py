@@ -51,7 +51,7 @@ class Hooks:
 
 
 @dataclass
-class Pattern:
+class Task:
     name: str
     prompt: str
     enabled: bool = True
@@ -65,7 +65,7 @@ class Pattern:
 class Config:
     vars: dict[str, str]
     runner: RunnerConfig
-    patterns: list[Pattern]
+    tasks: list[Task]
     variants: list[Variant]
     project_dir: Path
     config_dir: Path
@@ -78,20 +78,20 @@ class Config:
     def results_dir(self) -> Path:
         return self.project_dir / "results"
 
-    def get_pattern(self, name: str) -> Pattern | None:
-        return next((p for p in self.patterns if p.name == name), None)
+    def get_pattern(self, name: str) -> Task | None:
+        return next((p for p in self.tasks if p.name == name), None)
 
     def get_variant(self, name: str) -> Variant | None:
         return next((v for v in self.variants if v.name == name), None)
 
-    def enabled_patterns(self) -> list[Pattern]:
-        return [p for p in self.patterns if p.enabled]
+    def enabled_patterns(self) -> list[Task]:
+        return [p for p in self.tasks if p.enabled]
 
     def image_name(self, variant: Variant) -> str:
         return f"{self.runner.container_image_base}:{variant.image_tag}"
 
-    def resolve_prompt(self, pattern: Pattern) -> str:
-        result = pattern.prompt
+    def resolve_prompt(self, task: Task) -> str:
+        result = task.prompt
         for key, value in self.vars.items():
             result = result.replace("{" + key + "}", str(value))
         return result
@@ -125,10 +125,10 @@ def load_config(config_dir: Path | None = None) -> Config:
         otel_endpoint=runner_raw.get("otel_endpoint", "http://host.docker.internal:4318"),
     )
 
-    patterns = _load_patterns(config_dir, raw)
+    tasks = _load_patterns(config_dir, raw)
     variants = _load_variants(config_dir, raw)
 
-    return Config(vars=vars_dict, runner=runner, patterns=patterns, variants=variants,
+    return Config(vars=vars_dict, runner=runner, tasks=tasks, variants=variants,
                   project_dir=project_dir, config_dir=config_dir)
 
 
@@ -152,7 +152,7 @@ def _parse_hooks(raw: dict | None) -> Hooks:
     return Hooks(before_run=raw.get("before_run"), after_run=raw.get("after_run"))
 
 
-def _parse_pattern(p: dict, fallback_name: str = "") -> Pattern:
+def _parse_pattern(p: dict, fallback_name: str = "") -> Task:
     # Evaluators: try evaluators → judges → metrics.judges + verify (backward compat)
     evaluators_raw = p.get("evaluators")
     if not evaluators_raw:
@@ -166,7 +166,7 @@ def _parse_pattern(p: dict, fallback_name: str = "") -> Pattern:
     if not hooks_raw and p.get("reset_script"):
         hooks_raw = {"before_run": p["reset_script"]}
 
-    return Pattern(
+    return Task(
         name=p.get("name", fallback_name),
         prompt=p.get("prompt", ""),
         enabled=p.get("enabled", True),
@@ -189,29 +189,29 @@ def _parse_variant(v: dict, fallback_name: str = "") -> Variant:
     )
 
 
-def _load_patterns(config_dir: Path, raw_config: dict) -> list[Pattern]:
-    patterns: list[Pattern] = []
+def _load_patterns(config_dir: Path, raw_config: dict) -> list[Task]:
+    tasks: list[Task] = []
 
-    # Primary: patterns/*.yaml files
-    patterns_dir = config_dir / "patterns"
+    # Primary: tasks/*.yaml files
+    patterns_dir = config_dir / "tasks"
     if patterns_dir.is_dir():
         for yaml_file in sorted(patterns_dir.glob("*.yaml")):
             with open(yaml_file) as f:
                 p = yaml.safe_load(f)
             if p:
-                patterns.append(_parse_pattern(p, fallback_name=yaml_file.stem))
+                tasks.append(_parse_pattern(p, fallback_name=yaml_file.stem))
 
     # Fallback: inline in eval-config.yaml
-    if not patterns:
-        inline = raw_config.get("patterns") or []
+    if not tasks:
+        inline = raw_config.get("tasks") or []
         if isinstance(inline, list):
             for p in inline:
-                patterns.append(_parse_pattern(p))
+                tasks.append(_parse_pattern(p))
         elif isinstance(inline, dict):
             for name, p in inline.items():
-                patterns.append(_parse_pattern({**p, "name": name}, fallback_name=name))
+                tasks.append(_parse_pattern({**p, "name": name}, fallback_name=name))
 
-    return patterns
+    return tasks
 
 
 def _load_variants(config_dir: Path, raw_config: dict) -> list[Variant]:

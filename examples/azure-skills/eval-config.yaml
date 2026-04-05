@@ -23,7 +23,7 @@ variants:
     build: { script: examples/azure-skills/setup/build-azure-skills.sh }
     run: { script: examples/azure-skills/setup/azure-login.sh }
 
-patterns:
+tasks:
   - name: resource-explorer
     prompt: "List all resources in resource group {resource_group} and explain the architecture"
     evaluators:
@@ -144,15 +144,3 @@ patterns:
           10 = Specific, actionable steps that address the identified issues.
           1 = Vague or generic suggestions.
           Output ONLY valid JSON: {"score": N, "reason": "..."}
-vars:
-  resource_group: rg-copilot-eval
-  location: southeastasia
-
-runner:
-  epochs: 1
-  timeout_seconds: 300
-  model: claude-sonnet-4
-  max_turns: 20
-  container_image_base: copilot-eval
-  copilot_version: "1.0.18"
-  otel_endpoint: http://host.docker.internal:4318
