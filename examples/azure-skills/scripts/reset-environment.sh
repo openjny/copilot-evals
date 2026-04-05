@@ -11,8 +11,8 @@ set -euo pipefail
 RG="${EVAL_RESOURCE_GROUP:?EVAL_RESOURCE_GROUP not set}"
 LOCATION="${EVAL_LOCATION:-southeastasia}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BICEP_FILE="${SCRIPT_DIR}/../infra/patterns/resource-explorer/main.bicep"
-PARAM_FILE="${SCRIPT_DIR}/../infra/patterns/resource-explorer/main.bicepparam"
+BICEP_FILE="${SCRIPT_DIR}/../infra/main.bicep"
+PARAM_FILE="${SCRIPT_DIR}/../infra/main.bicepparam"
 
 echo "[reset] Resetting $RG to baseline state..."
 

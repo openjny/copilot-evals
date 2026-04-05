@@ -15,13 +15,13 @@ runner:
 variants:
   - name: baseline
     description: "Copilot CLI with Azure CLI (no plugins)"
-    build: { script: examples/azure-skills/setup/build-baseline.sh }
-    run: { script: examples/azure-skills/setup/azure-login.sh }
+    build: { script: examples/azure-skills/scripts/build-baseline.sh }
+    run: { script: examples/azure-skills/scripts/azure-login.sh }
 
   - name: azure-skills
     description: "Copilot CLI with Azure Skills Plugin (microsoft/azure-skills)"
-    build: { script: examples/azure-skills/setup/build-azure-skills.sh }
-    run: { script: examples/azure-skills/setup/azure-login.sh }
+    build: { script: examples/azure-skills/scripts/build-azure-skills.sh }
+    run: { script: examples/azure-skills/scripts/azure-login.sh }
 
 tasks:
   - name: resource-explorer
