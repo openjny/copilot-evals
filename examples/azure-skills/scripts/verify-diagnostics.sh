@@ -3,9 +3,9 @@ set -euo pipefail
 #
 # verify-diagnostics.sh — diagnostics task evaluator
 #
-# Copilot が App Service の問題を実際に調査したかを検証する。
-# App Service のログやメトリクスにアクセスした痕跡があるか、
-# または問題の根本原因自体が解消されたかをチェックする。
+# Verifies that Copilot investigated the App Service issues.
+# Checks whether logs/metrics were accessed or the root cause
+# was resolved.
 #
 
 RG="${EVAL_RESOURCE_GROUP:?EVAL_RESOURCE_GROUP not set}"

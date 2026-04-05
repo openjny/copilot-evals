@@ -3,8 +3,8 @@ set -euo pipefail
 #
 # verify-app-deploy.sh — app-deploy task evaluator
 #
-# Copilot がアプリを App Service にデプロイできたかを検証する。
-# App Service の URL にアクセスし、期待するレスポンスが返るかチェック。
+# Verifies that Copilot successfully deployed the app to the App Service.
+# Accesses the App Service URL and checks for the expected response.
 #
 
 RG="${EVAL_RESOURCE_GROUP:?EVAL_RESOURCE_GROUP not set}"

@@ -3,7 +3,7 @@ set -euo pipefail
 #
 # verify-resource-explorer.sh — resource-explorer task evaluator
 #
-# Copilot の出力に、デプロイ済みリソースが含まれているかチェックする。
+# Checks that the deployed resources are present in the resource group.
 # Vars are passed as EVAL_* environment variables from the runner.
 #
 

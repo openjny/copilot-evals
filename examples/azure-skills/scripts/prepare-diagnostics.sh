@@ -3,10 +3,10 @@ set -euo pipefail
 #
 # prepare-diagnostics.sh — diagnostics task before_run hook
 #
-# 1. 環境をベースライン状態にリセット (reset-environment.sh を呼ぶ)
-# 2. 意図的に壊れたアプリを App Service にデプロイして診断シナリオを作る
+# 1. Reset environment to baseline state (calls reset-environment.sh)
+# 2. Deploy an intentionally broken app to App Service to create a diagnostics scenario
 #
-# Copilot は起動に失敗した App Service を発見し、原因を特定する必要がある。
+# Copilot must discover the failing App Service and identify the root cause.
 #
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
