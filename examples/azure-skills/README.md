@@ -155,67 +155,70 @@ Each Copilot CLI execution runs in an isolated Docker container. Containers are 
 
 ## Results
 
-Full eval run: 3 tasks × 2 variants × 3 epochs = 18 runs (model: claude-sonnet-4, run-id: `20260405-212819`).
+Full eval run: 3 tasks × 2 variants × 3 epochs = 18 runs, model: claude-sonnet-4.
 
 ### Task: compliance-audit
 
-| Metric | azure-skills | baseline | Delta |
+| Metric | baseline | azure-skills | Delta |
 |--------|--------:|--------:|------:|
-| Duration (s) | 183.4 | 165.0 | -10.0% |
-| Turns | 15 | 13 | -13.3% |
-| Tool calls | 29 | 27 | -6.9% |
-| Tool duration (s) | 54.5 | 36.0 | -34.0% |
-| Input tokens | 860K | 356K | -58.7% |
+| Duration (s) | 165.0 | 183.4 | +11.2% |
+| Turns | 13 | 15 | +15.4% |
+| Tool calls | 27 | 29 | +7.4% |
+| Tool duration (s) | 36.0 | 54.5 | +51.4% |
+| Input tokens | 356K | 860K | +141.6% |
+| Output tokens | 6,731 | 7,084 | +5.2% |
 
 Tool patterns: azure-skills uses `azure-extension_azqr` for bulk security review + `bash` for granular checks. baseline uses only `bash` + `sql`.
 
-| Evaluator | azure-skills | baseline | Winner |
+| Evaluator | baseline | azure-skills | Winner |
 |-----------|:-----------:|:--------:|--------|
-| methodology | 7 | **8** | baseline |
-| coverage | 6 | **8** | baseline |
-| finding_accuracy | 5 | **7** | baseline |
-| remediation_quality | 4 | **7** | baseline |
+| methodology | **8** | 7 | baseline |
+| coverage | **8** | 6 | baseline |
+| finding_accuracy | **7** | 5 | baseline |
+| remediation_quality | **7** | 4 | baseline |
 | verify | 1 | 1 | tie |
 
 **Takeaway**: baseline's per-resource `az` CLI inspection is more thorough. azure-skills' MCP bulk tools miss granular settings.
 
 ### Task: app-deploy
 
-| Metric | azure-skills | baseline | Delta |
+| Metric | baseline | azure-skills | Delta |
 |--------|--------:|--------:|------:|
-| Duration (s) | **130.4** | 295.8 | +126.9% |
-| Turns | **9** | 33 | +266.7% |
-| Tool calls | **18** | 37 | +105.6% |
-| Tool duration (s) | **17.9** | 180.6 | +909.0% |
-| Input tokens | 525K | 857K | +63.1% |
+| Duration (s) | 295.8 | **130.4** | -55.9% |
+| Turns | 33 | **9** | -72.7% |
+| Tool calls | 37 | **18** | -51.4% |
+| Tool duration (s) | 180.6 | **17.9** | -90.1% |
+| Input tokens | 857K | 525K | -38.7% |
+| Output tokens | 4,695 | 5,139 | +9.5% |
 
 Tool patterns: azure-skills uses `azure-appservice` MCP tool for deploy. baseline relies on lengthy `bash` trial-and-error.
 
-| Evaluator | azure-skills | baseline | Winner |
+| Evaluator | baseline | azure-skills | Winner |
 |-----------|:-----------:|:--------:|--------|
-| deployment_approach | **4** | 3 | azure-skills |
-| completeness | 2 | **3** | baseline |
-| verification | 1 | **7** | baseline |
+| deployment_approach | 3 | **4** | azure-skills |
+| completeness | **3** | 2 | baseline |
+| verification | **7** | 1 | baseline |
 | verify | 0 | 0 | tie |
 
 **Takeaway**: azure-skills is dramatically faster (130s vs 296s, 10× faster tool execution) with structured deploy workflow. However, baseline actually verifies deployment (7 vs 1). Neither achieves `verify` PASS consistently.
 
 ### Task: diagnostics
 
-| Metric | azure-skills | baseline | Delta |
+| Metric | baseline | azure-skills | Delta |
 |--------|--------:|--------:|------:|
-| Duration (s) | 287.4 | **157.2** | -45.3% |
-| Turns | 18 | 17 | -5.6% |
-| Tool calls | 34 | 32 | -5.9% |
-| Tool duration (s) | 216.5 | **85.4** | -60.6% |
-| Input tokens | 1,100K | 440K | -60.0% |
+| Duration (s) | **157.2** | 287.4 | +82.8% |
+| Turns | 17 | 18 | +5.9% |
+| Tool calls | 32 | 34 | +6.3% |
+| Tool duration (s) | **85.4** | 216.5 | +153.5% |
+| Input tokens | 440K | 1,100K | +150.0% |
+| Output tokens | 4,432 | 5,322 | +20.1% |
 
 Tool patterns: azure-skills uses `azure-applens`(6), `azure-resourcehealth`(6), `azure-applicationinsights`(3) for structured diagnostics. baseline uses `bash` commands directly.
 
-| Evaluator | azure-skills | baseline | Winner |
+| Evaluator | baseline | azure-skills | Winner |
 |-----------|:-----------:|:--------:|--------|
-| diagnostic_depth | 5 | **6** | baseline |
-| tool_usage | 6 | **7** | baseline |
+| diagnostic_depth | **6** | 5 | baseline |
+| tool_usage | **7** | 6 | baseline |
 | root_cause | 2 | 2 | tie |
 | actionability | 2 | 2 | tie |
 | verify | 1 | 1 | tie |

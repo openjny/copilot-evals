@@ -2,7 +2,7 @@ vars:
   location: southeastasia
 
 runner:
-  epochs: 1
+  epochs: 3
   timeout_seconds: 300
   model: claude-sonnet-4
   max_turns: 20
