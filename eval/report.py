@@ -49,11 +49,11 @@ def build_report(results: list[RunMetrics], results_dir: Path | None = None) -> 
 
     summary = []
     for label, key in metric_defs:
-        means = {}
+        medians = {}
         for v in variants:
-            vals = [float(getattr(r, key)) for r in by_variant[v]]
-            means[v] = sum(vals) / len(vals) if vals else 0
-        summary.append(SummaryRow(metric=label, values=means, delta=_calc_delta(means, variants)))
+            vals = sorted(float(getattr(r, key)) for r in by_variant[v])
+            medians[v] = vals[len(vals) // 2] if vals else 0
+        summary.append(SummaryRow(metric=label, values=medians, delta=_calc_delta(medians, variants)))
 
     tool_patterns: dict[str, dict[str, int]] = {}
     for v in variants:
@@ -85,7 +85,7 @@ def format_table(report: Report) -> str:
         )
     hdr = "".join(f"{v:>18}" for v in report.variants)
     lines.append("\n" + "=" * 80)
-    lines.append("SUMMARY (mean across epochs)")
+    lines.append("SUMMARY (median across epochs)")
     lines.append("=" * 80)
     lines.append(f"\n{'Metric':<30} {hdr} {'Delta':>12}")
     lines.append("-" * (30 + 18 * len(report.variants) + 12))
@@ -188,15 +188,18 @@ def _load_judge_scores(results_dir: Path, variants: list[str]) -> list[SummaryRo
     for v_data in score_data.values():
         all_names.update(v_data.keys())
 
-    def _mean(vals: list[int]) -> float:
-        return sum(vals) / len(vals) if vals else 0
+    def _median(vals: list[int]) -> float:
+        if not vals:
+            return 0
+        s = sorted(vals)
+        return float(s[len(s) // 2])
 
     return [
         SummaryRow(
             metric=name,
-            values={v: _mean(score_data.get(v, {}).get(name, [])) for v in variants},
+            values={v: _median(score_data.get(v, {}).get(name, [])) for v in variants},
             delta=_calc_delta(
-                {v: _mean(score_data.get(v, {}).get(name, [])) for v in variants},
+                {v: _median(score_data.get(v, {}).get(name, [])) for v in variants},
                 variants,
             ),
         )
