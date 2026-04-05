@@ -103,6 +103,7 @@ class Config:
         result = task.prompt
         for key, value in self.resolve_vars(task, variant).items():
             result = result.replace("{" + key + "}", str(value))
+        result += "\n\nSave all output files under /workspace/output/."
         return result
 
 

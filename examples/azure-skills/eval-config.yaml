@@ -26,7 +26,7 @@ variants:
 tasks:
   - name: compliance-audit
     vars: { resource_group: rg-copilot-eval-compliance }
-    prompt: "Audit the security and compliance posture of resource group {resource_group}. Write your findings and recommendations to /workspace/report.md when done."
+    prompt: "Audit the security and compliance posture of resource group {resource_group}. Write your findings and recommendations to /workspace/output/report.md when done."
     hooks:
       before_run: scripts/reset-environment.sh
     health_check: scripts/check-environment.sh
@@ -67,7 +67,7 @@ tasks:
 
   - name: app-deploy
     vars: { resource_group: rg-copilot-eval-deploy }
-    prompt: "Deploy the Node.js app in the current directory to the App Service in resource group {resource_group}. Write the deployment result (app URL and status) to /workspace/result.md when done."
+    prompt: "Deploy the Node.js app in the current directory to the App Service in resource group {resource_group}. Write the deployment result (app URL and status) to /workspace/output/result.md when done."
     fixture: app-deploy
     hooks:
       before_run: scripts/reset-environment.sh
@@ -93,7 +93,7 @@ tasks:
 
   - name: diagnostics
     vars: { resource_group: rg-copilot-eval-diag }
-    prompt: "An App Service in resource group {resource_group} is failing to start. Investigate and write a diagnostic report with root cause and fix to /workspace/report.md when done."
+    prompt: "An App Service in resource group {resource_group} is failing to start. Investigate and write a diagnostic report with root cause and fix to /workspace/output/report.md when done."
     hooks:
       before_run: scripts/prepare-diagnostics.sh
     health_check: scripts/check-environment.sh

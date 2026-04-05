@@ -45,52 +45,74 @@ uv run copilot-eval analyze --run-id <RUN_ID> --config-dir examples/prompt-langu
 
 ## Results
 
-Full eval run: 2 tasks × 2 variants × 3 epochs = 12 runs, model: claude-sonnet-4, parallel: full.
+Run ID: `20260406-014831`, model: gpt-5.4-mini, judge: claude-sonnet-4.6, 2 tasks × 2 variants × 3 epochs = 12 runs.
 
 ### code-review
 
 | Metric | english | japanese | Δ (paired) |
 |--------|--------:|--------:|------:|
-| Duration (s) | 71.3 | **46.0** | -30.7% |
-| Turns | 6 | **3** | -33.3% |
-| Input tokens | 146K | **68K** | -35.9% |
-| Output tokens | 3,732 | **2,816** | -31.5% |
+| Duration (s) | **24.6** | 31.9 | +23.5% |
+| Turns | **5** | 7 | +40.0% |
+| Input tokens | **92K** | 130K | +39.8% |
+| Output tokens | **1,247** | 1,542 | +10.9% |
+| Tool calls | **6** | 10 | +66.7% |
 
-**Tools**: english uses more `bash`(9) commands to run the code. japanese is more concise, using mainly `view`(9) + `create`(3).
+**Tools**: english: `view`(9), `report_intent`(3), `glob`(3), `apply_patch`(3). japanese: `view`(9), `report_intent`(6), `apply_patch`(5), `glob`(3), `sql`(2), `bash`(1).
 
 | Evaluator | english | japanese | Δ |
 |-----------|:-----------:|:--------:|--------|
-| thoroughness | 6 | **7** | +33% |
-| actionability | 4 | **7** | +75% |
+| thoroughness | 9 | **10** | +11% |
+| actionability | 7 | 7 | 0% |
 
-**Takeaway**: Japanese prompts produce faster, more token-efficient, AND higher quality code reviews. Japanese responses are 31% fewer output tokens but score higher on both thoroughness and actionability. The model appears to be more focused and less verbose in Japanese.
+**Per-run scores**:
+
+| Variant | Epoch | thoroughness | actionability |
+|---------|------:|:---:|:---:|
+| english | 1 | 9 | 7 |
+| english | 2 | 7 | 6 |
+| english | 3 | 9 | 8 |
+| japanese | 1 | 10 | 8 |
+| japanese | 2 | 8 | 7 |
+| japanese | 3 | 10 | 5 |
+
+**Takeaway**: Both languages perform well. Japanese is slightly better on thoroughness (10 vs 9) but English is faster and more token-efficient.
 
 ### explain-architecture
 
 | Metric | english | japanese | Δ (paired) |
 |--------|--------:|--------:|------:|
-| Duration (s) | **56.3** | 81.9 | +45.4% |
-| Turns | **4** | 7 | +75.0% |
-| Input tokens | **93K** | 167K | +79.9% |
-| Output tokens | **3,118** | 4,261 | +36.7% |
+| Duration (s) | **19.6** | 25.1 | +14.6% |
+| Turns | 5 | 5 | 0% |
+| Input tokens | **92K** | 112K | +20.9% |
+| Output tokens | **1,235** | 1,986 | +46.2% |
+| Tool calls | **6** | 8 | +33.3% |
 
-**Tools**: english uses only `view`(10) + `create`(6) — read and write. japanese adds `bash`(10) — actually runs the code to understand it.
+**Tools**: english: `view`(9), `apply_patch`(3), `glob`(3), `report_intent`(3). japanese: `view`(13), `report_intent`(4), `glob`(4), `apply_patch`(3).
 
 | Evaluator | english | japanese | Δ |
 |-----------|:-----------:|:--------:|--------|
-| clarity | **7** | 6 | -14% |
-| completeness | 6 | 6 | 0% |
+| completeness | **10** | 8 | -10% |
+| clarity | 9 | 9 | 0% |
 
-**Takeaway**: English is faster and clearer for architecture explanation. Japanese takes more turns and tokens, partly because it runs the code (`bash` 10 calls) to supplement understanding. The extra investigation doesn't improve completeness.
+**Per-run scores**:
+
+| Variant | Epoch | completeness | clarity |
+|---------|------:|:---:|:---:|
+| english | 1 | 9 | 9 |
+| english | 2 | 10 | 9 |
+| english | 3 | 10 | 9 |
+| japanese | 1 | 9 | 9 |
+| japanese | 2 | 8 | 9 |
+| japanese | 3 | 8 | 9 |
+
+**Takeaway**: English edges out on completeness (10 vs 8) with fewer tokens.
 
 ### Key Insights
 
-1. **Task type matters**: Japanese wins on code-review (more concise, higher quality) but loses on explain-architecture (slower, more verbose). The model's behavior changes significantly based on the combination of task + language.
+1. **Language gap is small**: code-review thoroughness 9 vs 10, actionability 7 vs 7. explain-architecture completeness 10 vs 8, clarity 9 vs 9. No dramatic quality difference.
 
-2. **Token efficiency is not consistent**: Japanese is 2× more efficient on code-review (68K vs 146K input) but 2× less efficient on explain-architecture (167K vs 93K). There's no universal "cheaper language."
+2. **Task type determines winner**: code-review slightly favors Japanese. explain-architecture favors English.
 
-3. **Quality vs efficiency trade-off varies**: For code-review, Japanese is both cheaper AND better. For explain-architecture, English is cheaper AND clearer. The common assumption that "English = better LLM performance" does not hold uniformly.
+3. **English is more token-efficient**: 30-40% fewer input tokens across both tasks. The model takes fewer turns in English.
 
-4. **Behavioral differences**: Japanese prompts cause the model to take different approaches — fewer tool calls on code-review but more on explain-architecture. The prompt language influences not just the output format but the problem-solving strategy.
-
-5. **Low variance**: With termination conditions in prompts ("write to /workspace/*.md when done"), run-to-run variance is low — especially for English (46.9-58.8s on explain-architecture).
+4. **Behavioral differences**: Japanese uses more tools (10 vs 6 on code-review) and takes more turns, but doesn't translate to proportionally higher scores.

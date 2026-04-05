@@ -95,6 +95,8 @@ def run_one(
     fixture_dir = (config.config_dir / "fixtures" / (task.fixture or task.name)).resolve()
     if fixture_dir.is_dir():
         shutil.copytree(fixture_dir, work_dir, dirs_exist_ok=True)
+    # Create output dir for Copilot to write artifacts (used by judge evaluator)
+    (work_dir / "output").mkdir(exist_ok=True)
     cmd.extend(["-v", f"{work_dir}:/workspace"])
 
     if variant.run_script:
@@ -123,7 +125,7 @@ def run_one(
 
         _run_hook(task.hooks.after_run, config, task, variant, log_file, "after_run")
 
-        scores = _run_evaluators(task, variant, config, log_file, github_token)
+        scores = _run_evaluators(task, variant, config, log_file, github_token, work_dir)
         _print_scores(scores)
     finally:
         shutil.rmtree(work_dir, ignore_errors=True)
@@ -167,12 +169,12 @@ def _run_health_check(script: str, config: Config, task: Task, variant: Variant,
     return proc.returncode == 0
 
 
-def _run_evaluators(task: Task, variant: Variant, config: Config, log_file: Path, token: str) -> list[EvalScore]:
+def _run_evaluators(task: Task, variant: Variant, config: Config, log_file: Path, token: str, work_dir: Path | None = None) -> list[EvalScore]:
     scores: list[EvalScore] = []
     for ev in task.evaluators:
         s = None
         if ev.type == "judge":
-            s = _eval_judge(ev, config, log_file, token)
+            s = _eval_judge(ev, config, log_file, token, work_dir)
         elif ev.type == "script":
             s = _eval_script(ev, config, task, variant, log_file)
         elif ev.type == "contains":
@@ -190,13 +192,18 @@ def _run_evaluators(task: Task, variant: Variant, config: Config, log_file: Path
     return scores
 
 
-def _eval_judge(ev: Evaluator, config: Config, log_file: Path, token: str) -> EvalScore | None:
+def _eval_judge(ev: Evaluator, config: Config, log_file: Path, token: str, work_dir: Path | None = None) -> EvalScore | None:
     if not ev.prompt:
         return None
     output = _read_log(log_file, max_chars=8000)
     if not output:
         return None
-    prompt = f"You are an eval judge. Score the following Copilot output.\n\n{ev.prompt}\n\n--- COPILOT OUTPUT ---\n{output}\n--- END OUTPUT ---\n\nOutput ONLY valid JSON: {{\"score\": N, \"reason\": \"...\"}}"
+    # Build judge prompt with conversation output + output files
+    sections = [f"--- COPILOT OUTPUT ---\n{output}\n--- END OUTPUT ---"]
+    output_files = _read_output_files(work_dir, max_chars=8000)
+    if output_files:
+        sections.append(f"--- OUTPUT FILES ---\n{output_files}\n--- END FILES ---")
+    prompt = f"You are an eval judge. Score the following Copilot output.\n\n{ev.prompt}\n\n{'\n\n'.join(sections)}\n\nOutput ONLY valid JSON: {{\"score\": N, \"reason\": \"...\"}}"
     print(f"    Evaluating: {ev.name} (judge)...")
     cmd = ["copilot", "-p", prompt, "-s"]
     if config.runner.judge_model:
@@ -244,6 +251,33 @@ def _eval_regex(ev: Evaluator, log_file: Path) -> EvalScore | None:
     output = _read_log(log_file)
     match = bool(re.search(ev.value, output or ""))
     return EvalScore(name=ev.name, type="regex", score=1 if match else 0, reason=f"{'matched' if match else 'no match'}", passed=match)
+
+
+def _read_output_files(work_dir: Path | None, max_chars: int = 8000) -> str | None:
+    """Read all files from work_dir/output/ and return as a concatenated string."""
+    if not work_dir:
+        return None
+    output_dir = work_dir / "output"
+    if not output_dir.is_dir():
+        return None
+    parts: list[str] = []
+    total = 0
+    for f in sorted(output_dir.rglob("*")):
+        if not f.is_file():
+            continue
+        rel = f.relative_to(output_dir)
+        try:
+            content = f.read_text(errors="replace")
+        except OSError:
+            continue
+        if total + len(content) > max_chars:
+            remaining = max_chars - total
+            if remaining > 0:
+                parts.append(f"=== {rel} ===\n{content[:remaining]}\n... (truncated)")
+            break
+        parts.append(f"=== {rel} ===\n{content}")
+        total += len(content)
+    return "\n\n".join(parts) if parts else None
 
 
 def _read_log(log_file: Path, max_chars: int = 0) -> str | None:

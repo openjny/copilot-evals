@@ -3,7 +3,8 @@ vars: {}
 runner:
   epochs: 3
   timeout_seconds: 120
-  model: claude-sonnet-4
+  model: gpt-5.4-mini
+  judge_model: claude-sonnet-4.6
   max_turns: 10
   parallel: full
   max_workers: 6
@@ -22,7 +23,7 @@ variants:
 
 tasks:
   - name: code-review
-    prompt: "Review the code in the current directory for bugs, security issues, and potential improvements. Respond in {language}. Write your review to /workspace/review.md when done."
+    prompt: "Review the code in the current directory for bugs, security issues, and potential improvements. Respond in {language}. Write your review to /workspace/output/review.md when done."
     fixture: sample-app
     evaluators:
       - name: thoroughness
@@ -52,7 +53,7 @@ tasks:
           Output ONLY valid JSON: {"score": N, "reason": "..."}
 
   - name: explain-architecture
-    prompt: "Explain the architecture and design patterns used in the code in the current directory. Respond in {language}. Write your explanation to /workspace/architecture.md when done."
+    prompt: "Explain the architecture and design patterns used in the code in the current directory. Respond in {language}. Write your explanation to /workspace/output/architecture.md when done."
     fixture: sample-app
     evaluators:
       - name: completeness
