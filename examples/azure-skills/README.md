@@ -15,13 +15,13 @@ Each task is executed over multiple epochs and scored using LLM-as-Judge + scrip
 
 ## Tasks
 
-### 1. resource-explorer
+### 1. compliance-audit
 
-List all resources in a resource group and explain the architecture.
+Audit the security and compliance posture of all resources in the resource group.
 
-- **Prompt**: `List all resources in resource group {resource_group} and explain the architecture`
-- **Evaluators**: verify (script), completeness (judge), architecture_accuracy (judge), actionability (judge)
-- **Features demonstrated**: Combining script and judge evaluators
+- **Prompt**: `Audit the security and compliance posture of the resources in resource group {resource_group}...`
+- **Evaluators**: verify (script), coverage (judge), finding_accuracy (judge), remediation_quality (judge), methodology (judge)
+- **Features demonstrated**: Script evaluator validates actual Azure config + judge evaluators assess audit quality
 
 ### 2. app-deploy
 
@@ -63,7 +63,7 @@ examples/azure-skills/
     ├── build-azure-skills.sh # azure-skills variant build (plugin install)
     ├── reset-environment.sh  # Reset environment via Bicep Complete mode (shared hook)
     ├── prepare-diagnostics.sh # diagnostics: reset + deploy broken app
-    ├── verify-resource-explorer.sh  # resource-explorer verification
+    ├── verify-compliance-audit.sh   # compliance-audit verification
     ├── verify-app-deploy.sh         # app-deploy verification
     └── verify-diagnostics.sh        # diagnostics verification
 ```

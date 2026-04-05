@@ -24,36 +24,55 @@ variants:
     run: { script: examples/azure-skills/scripts/azure-login.sh }
 
 tasks:
-  - name: resource-explorer
-    prompt: "List all resources in resource group {resource_group} and explain the architecture"
+  - name: compliance-audit
+    prompt: "Audit the security and compliance posture of the resources in resource group {resource_group}. Check for encryption settings, network access controls, authentication methods, TLS versions, and any deviations from Azure security best practices. Provide a detailed compliance report with findings and remediation recommendations."
     hooks:
       before_run: scripts/reset-environment.sh
     evaluators:
       - name: verify
         type: script
-        script: scripts/verify-resource-explorer.sh
-      - name: completeness
+        script: scripts/verify-compliance-audit.sh
+      - name: coverage
         type: judge
         prompt: |
-          Rate the completeness of this Azure resource listing on a scale of 1-10.
-          10 = All resources listed with their types and relationships explained.
-          1 = Major resources missing or only names without context.
+          The resource group contains: App Service, Storage Account, SQL Server,
+          VNet with subnets, Private Endpoints, Log Analytics, and Application Insights.
+          Rate how many of these resources were actually inspected for compliance on a scale of 1-10.
+          10 = All resource types checked with specific configuration details.
+          5 = Only 3-4 resource types checked.
+          1 = Only 1-2 resources mentioned or generic advice given.
           Output ONLY valid JSON: {"score": N, "reason": "..."}
-      - name: architecture_accuracy
+      - name: finding_accuracy
         type: judge
         prompt: |
-          Rate how accurately the architecture explanation captures the design patterns
-          (e.g. VNet integration, private endpoints, monitoring setup) on a scale of 1-10.
-          10 = All patterns correctly identified and explained.
-          1 = Architecture description is wrong or missing.
+          The environment has these security configurations:
+          - App Service: HTTPS-only, FTPS disabled, TLS 1.2, VNet integrated
+          - Storage: HTTPS-only, public blob access disabled, public network disabled, TLS 1.2, private endpoint
+          - SQL Server: Entra-only auth (no SQL auth), public network disabled, TLS 1.2, private endpoint
+          - Log Analytics / App Insights: public network access disabled
+          Rate how accurately the findings match the actual configuration on a scale of 1-10.
+          10 = All security settings correctly identified with no false positives.
+          5 = Some settings correctly identified but with gaps or inaccuracies.
+          1 = Findings are mostly wrong or fabricated.
           Output ONLY valid JSON: {"score": N, "reason": "..."}
-      - name: actionability
+      - name: remediation_quality
         type: judge
         prompt: |
-          Rate how actionable and useful this output would be for an engineer unfamiliar
-          with this Azure environment on a scale of 1-10.
-          10 = Engineer could understand and work with this environment immediately.
-          1 = Output is confusing or unhelpful.
+          Rate the quality of remediation recommendations on a scale of 1-10.
+          10 = Actionable, specific recommendations with Azure CLI/portal steps. Identifies
+               real gaps (e.g., missing diagnostic settings, missing private DNS zones,
+               no NSG flow logs, no Azure Policy assignments).
+          5 = Generic best-practice suggestions without specifics.
+          1 = No recommendations or irrelevant advice.
+          Output ONLY valid JSON: {"score": N, "reason": "..."}
+      - name: methodology
+        type: judge
+        prompt: |
+          Rate the systematic nature of the compliance audit methodology on a scale of 1-10.
+          10 = Structured approach: checked network security, identity, encryption, monitoring,
+               and data protection systematically. Used multiple Azure tools/commands to verify settings.
+          5 = Checked some areas but missed major categories.
+          1 = Ad hoc or superficial — just listed resources without inspecting configurations.
           Output ONLY valid JSON: {"score": N, "reason": "..."}
 
   - name: app-deploy
