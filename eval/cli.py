@@ -134,12 +134,13 @@ def analyze(run_id: str, output: str, jaeger_url: str | None, config_dir: str | 
         return
 
     results_dir = config.results_dir / run_id
-    report = build_report(metrics, results_dir if results_dir.exists() else None)
-    if not report:
+    reports = build_report(metrics, results_dir if results_dir.exists() else None)
+    if not reports:
+        click.echo("No reports generated.", err=True)
         return
 
     formatters = {"table": format_table, "json": format_json, "markdown": format_markdown}
-    click.echo(formatters[output](report))
+    click.echo(formatters[output](reports))
 
 
 @main.command()
