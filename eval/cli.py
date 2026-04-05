@@ -7,7 +7,7 @@ from pathlib import Path
 
 import click
 
-from eval.config import load_config
+from eval.config import Task, load_config
 from eval.runner import RunResult, get_github_token, run_one
 from eval.trace import extract_metrics, fetch_traces, filter_by_run
 from eval.report import build_report, format_table, format_json, format_markdown
@@ -72,20 +72,24 @@ def run(task: str | None, epochs: int | None, dry_run: bool, config_dir: str | N
     github_token = get_github_token()
     results: list[RunResult] = []
 
-    if config.runner.parallel:
+    if config.runner.parallel and len(tasks) > 1:
         from concurrent.futures import ThreadPoolExecutor, as_completed
 
-        futures = []
-        with ThreadPoolExecutor(max_workers=len(config.variants)) as pool:
-            for p in tasks:
-                click.echo(f"\n>>> Task: {p.name}")
-                for epoch in range(1, epochs + 1):
-                    for variant in config.variants:
-                        futures.append(pool.submit(
-                            run_one, p, variant, epoch, config, run_id, run_dir, github_token,
-                        ))
+        def _run_task_serial(task: Task) -> list[RunResult]:
+            """Run all epochs × variants for a single task sequentially."""
+            task_results: list[RunResult] = []
+            for epoch in range(1, epochs + 1):
+                for variant in config.variants:
+                    task_results.append(
+                        run_one(task, variant, epoch, config, run_id, run_dir, github_token)
+                    )
+            return task_results
+
+        click.echo(f"Running {len(tasks)} tasks in parallel (variants serial within each task)")
+        with ThreadPoolExecutor(max_workers=len(tasks)) as pool:
+            futures = {pool.submit(_run_task_serial, t): t.name for t in tasks}
             for future in as_completed(futures):
-                results.append(future.result())
+                results.extend(future.result())
     else:
         for p in tasks:
             prompt = config.resolve_prompt(p)
