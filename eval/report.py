@@ -5,6 +5,7 @@ import json
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
+from statistics import median, mean as _mean
 
 from eval.trace import RunMetrics
 
@@ -24,58 +25,10 @@ class Report:
     summary: list[SummaryRow]
     tool_patterns: dict[str, dict[str, int]]
     judge_scores: list[SummaryRow] = field(default_factory=list)
-
-
-def build_report(results: list[RunMetrics], results_dir: Path | None = None,
-                 variant_order: list[str] | None = None) -> list[Report]:
-    """Build per-task A/B comparison reports."""
-    if not results:
-        return []
-
-    # Group by task (scenario)
-    by_task: dict[str, list[RunMetrics]] = defaultdict(list)
-    for r in results:
-        by_task[r.scenario].append(r)
-
-    reports: list[Report] = []
-    for task_name in sorted(by_task.keys()):
-        task_runs = by_task[task_name]
-        task_runs.sort(key=lambda r: (r.variant, r.epoch))
-
-        by_variant: dict[str, list[RunMetrics]] = defaultdict(list)
-        for r in task_runs:
-            by_variant[r.variant].append(r)
-
-        # Use config order if provided, otherwise preserve insertion order
-        if variant_order:
-            variants = [v for v in variant_order if v in by_variant]
-        else:
-            variants = list(by_variant.keys())
-
-        summary = []
-        for label, key in _METRIC_DEFS:
-            medians = {}
-            for v in variants:
-                vals = sorted(float(getattr(r, key)) for r in by_variant[v])
-                medians[v] = vals[len(vals) // 2] if vals else 0
-            summary.append(SummaryRow(metric=label, values=medians, delta=_calc_delta(medians, variants)))
-
-        tool_patterns: dict[str, dict[str, int]] = {}
-        for v in variants:
-            counts: dict[str, int] = defaultdict(int)
-            for r in by_variant[v]:
-                for t in r.tool_names:
-                    counts[t] += 1
-            tool_patterns[v] = dict(counts)
-
-        judge_rows = _load_judge_scores(results_dir, variants, task_name) if results_dir else []
-
-        reports.append(Report(
-            task=task_name, runs=task_runs, variants=variants,
-            summary=summary, tool_patterns=tool_patterns, judge_scores=judge_rows,
-        ))
-
-    return reports
+    # Per-epoch judge scores: key = (variant, epoch_str) -> {evaluator: score}
+    epoch_judges: dict[tuple[str, str], dict[str, int]] = field(default_factory=dict)
+    judge_names: list[str] = field(default_factory=list)
+    aggregate: str = "paired"
 
 
 _METRIC_DEFS = [
@@ -90,6 +43,122 @@ _METRIC_DEFS = [
 ]
 
 
+# --- Aggregation helpers ---
+
+def _median(vals: list[float]) -> float:
+    if not vals:
+        return 0
+    return float(median(vals))
+
+
+def _mean_agg(vals: list[float]) -> float:
+    if not vals:
+        return 0
+    return float(_mean(vals))
+
+
+def _aggregate_values(vals_by_variant: dict[str, list[float]], variants: list[str],
+                      method: str) -> tuple[dict[str, float], str]:
+    """Aggregate per-variant values and compute delta string."""
+    agg_fn = _median if method != "mean" else _mean_agg
+
+    if method == "paired" and len(variants) == 2:
+        v0, v1 = variants
+        vals0, vals1 = vals_by_variant.get(v0, []), vals_by_variant.get(v1, [])
+        ref0, ref1 = _median(vals0), _median(vals1)
+        n = min(len(vals0), len(vals1))
+        if n > 0:
+            deltas = [vals1[i] - vals0[i] for i in range(n)]
+            d = _median(deltas)
+            pct = f"{(d / ref0) * 100:+.1f}%" if ref0 > 0 else ""
+        else:
+            pct = ""
+        return {v0: ref0, v1: ref1}, pct
+
+    agg = {v: agg_fn(vals_by_variant.get(v, [])) for v in variants}
+    return agg, _calc_delta(agg, variants)
+
+
+def _calc_delta(values: dict[str, float], variants: list[str]) -> str:
+    if len(variants) != 2:
+        return ""
+    m0, m1 = values.get(variants[0], 0), values.get(variants[1], 0)
+    return f"{((m1 - m0) / m0) * 100:+.1f}%" if m0 > 0 else ""
+
+
+# --- Report building ---
+
+def build_report(results: list[RunMetrics], results_dir: Path | None = None,
+                 variant_order: list[str] | None = None,
+                 aggregate: str = "paired") -> list[Report]:
+    """Build per-task A/B comparison reports."""
+    if not results:
+        return []
+
+    by_task: dict[str, list[RunMetrics]] = defaultdict(list)
+    for r in results:
+        by_task[r.scenario].append(r)
+
+    reports: list[Report] = []
+    for task_name in sorted(by_task.keys()):
+        task_runs = by_task[task_name]
+        task_runs.sort(key=lambda r: (r.variant, r.epoch))
+
+        by_variant: dict[str, list[RunMetrics]] = defaultdict(list)
+        for r in task_runs:
+            by_variant[r.variant].append(r)
+
+        if variant_order:
+            variants = [v for v in variant_order if v in by_variant]
+        else:
+            variants = list(by_variant.keys())
+
+        # OTel metrics summary
+        summary = []
+        for label, key in _METRIC_DEFS:
+            vals_by_v = {v: [float(getattr(r, key)) for r in by_variant[v]] for v in variants}
+            agg, delta = _aggregate_values(vals_by_v, variants, aggregate)
+            summary.append(SummaryRow(metric=label, values=agg, delta=delta))
+
+        # Tool patterns
+        tool_patterns: dict[str, dict[str, int]] = {}
+        for v in variants:
+            counts: dict[str, int] = defaultdict(int)
+            for r in by_variant[v]:
+                for t in r.tool_names:
+                    counts[t] += 1
+            tool_patterns[v] = dict(counts)
+
+        # Judge scores (both aggregated + per-epoch)
+        epoch_judges, judge_names = {}, []
+        judge_rows: list[SummaryRow] = []
+        if results_dir:
+            raw, names = _load_judge_raw(results_dir, variants, task_name)
+            epoch_judges = raw
+            judge_names = names
+            # Aggregate judge scores
+            for name in names:
+                vals_by_v = {}
+                for v in variants:
+                    vals_by_v[v] = []
+                    for (rv, re), scores in raw.items():
+                        if rv == v and name in scores:
+                            vals_by_v[v].append(float(scores[name]))
+                agg, delta = _aggregate_values(vals_by_v, variants, aggregate)
+                judge_rows.append(SummaryRow(metric=name, values=agg, delta=delta))
+
+        reports.append(Report(
+            task=task_name, runs=task_runs, variants=variants,
+            summary=summary, tool_patterns=tool_patterns,
+            judge_scores=judge_rows, epoch_judges=epoch_judges,
+            judge_names=judge_names, aggregate=aggregate,
+        ))
+
+    return reports
+
+
+# --- Format functions ---
+
 def format_table(reports: list[Report]) -> str:
     sections: list[str] = []
     for report in reports:
@@ -97,19 +166,30 @@ def format_table(reports: list[Report]) -> str:
         lines.append(f"\n{'=' * 80}")
         lines.append(f"TASK: {report.task}")
         lines.append("=" * 80)
+
+        # Per-run header
+        jnames = report.judge_names
+        jhdr = "".join(f" {n[:8]:>8}" for n in jnames)
         lines.append(
-            f"\n{'Variant':<18} {'Epoch':>5} {'Spans':>5} {'Turns':>5} {'Dur(s)':>7} "
-            f"{'Tools':>5} {'In Tok':>8} {'Out Tok':>8} {'Cache':>8}"
+            f"\n{'Variant':<18} {'Epoch':>5} {'Turns':>5} {'Dur(s)':>7} "
+            f"{'Tools':>5} {'In Tok':>8} {'Out Tok':>8}{jhdr}"
         )
-        lines.append("-" * 90)
+        lines.append("-" * (60 + 9 * len(jnames)))
         for r in report.runs:
+            jvals = ""
+            for n in jnames:
+                s = report.epoch_judges.get((r.variant, r.epoch), {}).get(n)
+                jvals += f" {s:>8}" if s is not None else f" {'—':>8}"
             lines.append(
-                f"{r.variant:<18} {r.epoch:>5} {r.total_spans:>5} {r.turn_count:>5} "
+                f"{r.variant:<18} {r.epoch:>5} {r.turn_count:>5} "
                 f"{r.duration:>7.1f} {r.tool_count:>5} "
-                f"{r.total_input_tokens:>8} {r.total_output_tokens:>8} {r.total_cache_tokens:>8}"
+                f"{r.total_input_tokens:>8} {r.total_output_tokens:>8}{jvals}"
             )
+
+        # Summary
         hdr = "".join(f"{v:>18}" for v in report.variants)
-        lines.append(f"\n{'Metric':<30} {hdr} {'Delta':>12}")
+        lines.append(f"\nMetrics ({report.aggregate})")
+        lines.append(f"{'Metric':<30} {hdr} {'Delta':>12}")
         lines.append("-" * (30 + 18 * len(report.variants) + 12))
         for row in report.summary:
             cols = "".join(f"{row.values.get(v, 0):>18.1f}" for v in report.variants)
@@ -120,6 +200,7 @@ def format_table(reports: list[Report]) -> str:
             for row in report.judge_scores:
                 cols = "".join(f"{row.values.get(v, 0):>18.1f}" for v in report.variants)
                 lines.append(f"{row.metric:<30} {cols} {row.delta:>12}")
+
         sections.append("\n".join(lines))
     return "\n".join(sections)
 
@@ -129,6 +210,7 @@ def format_json(reports: list[Report]) -> str:
         "tasks": [
             {
                 "task": report.task,
+                "aggregate": report.aggregate,
                 "variants": report.variants,
                 "runs": [
                     {
@@ -137,6 +219,7 @@ def format_json(reports: list[Report]) -> str:
                         "tool_count": r.tool_count, "input_tokens": r.total_input_tokens,
                         "output_tokens": r.total_output_tokens, "cache_tokens": r.total_cache_tokens,
                         "tool_duration": r.tool_duration, "tool_names": r.tool_names, "model": r.model,
+                        "judges": report.epoch_judges.get((r.variant, r.epoch), {}),
                     }
                     for r in report.runs
                 ],
@@ -155,84 +238,83 @@ def format_markdown(reports: list[Report]) -> str:
     for report in reports:
         lines: list[str] = []
         lines.append(f"## {report.task}\n")
-        lines.append("### Metrics (median)\n")
+
+        # Summary
+        lines.append(f"### Metrics ({report.aggregate})\n")
         lines.append("| Metric |" + "".join(f" {v} |" for v in report.variants) + " Delta |")
         lines.append("|--------|" + "".join("--------:|" for _ in report.variants) + "------:|")
         for row in report.summary:
             cols = "".join(f" {row.values.get(v, 0):.1f} |" for v in report.variants)
             lines.append(f"| {row.metric} |{cols} {row.delta} |")
+
+        # Tool usage
         lines.append("\n### Tool Usage\n")
         for v in report.variants:
             tools = report.tool_patterns.get(v, {})
             top = sorted(tools.items(), key=lambda x: -x[1])[:10]
             lines.append(f"**{v}**: " + ", ".join(f"`{t}`({n})" for t, n in top))
+
+        # Judge summary
         if report.judge_scores:
-            lines.append("\n### Judge Scores\n")
+            lines.append(f"\n### Judge Scores ({report.aggregate})\n")
             lines.append("| Judge |" + "".join(f" {v} |" for v in report.variants) + " Delta |")
             lines.append("|-------|" + "".join("--------:|" for _ in report.variants) + "------:|")
             for row in report.judge_scores:
                 cols = "".join(f" {row.values.get(v, 0):.1f} |" for v in report.variants)
                 lines.append(f"| {row.metric} |{cols} {row.delta} |")
+
+        # Per-run details with judge columns
+        jnames = report.judge_names
         lines.append("\n### Per-Run Details\n")
-        lines.append("| Variant | Epoch | Turns | Duration | Tools | In Tok | Out Tok |")
-        lines.append("|---------|------:|------:|---------:|------:|-------:|--------:|")
+        jhdr = "".join(f" {n} |" for n in jnames)
+        jsep = "".join("------:|" for _ in jnames)
+        lines.append(f"| Variant | Epoch | Turns | Duration | Tools | In Tok | Out Tok |{jhdr}")
+        lines.append(f"|---------|------:|------:|---------:|------:|-------:|--------:|{jsep}")
         for r in report.runs:
+            jvals = ""
+            for n in jnames:
+                s = report.epoch_judges.get((r.variant, r.epoch), {}).get(n)
+                jvals += f" {s} |" if s is not None else " — |"
             lines.append(f"| {r.variant} | {r.epoch} | {r.turn_count} | {r.duration:.1f}s | "
-                         f"{r.tool_count} | {r.total_input_tokens} | {r.total_output_tokens} |")
+                         f"{r.tool_count} | {r.total_input_tokens} | {r.total_output_tokens} |{jvals}")
+
         sections.append("\n".join(lines))
     return "\n\n---\n\n".join(sections)
 
 
-def _calc_delta(means: dict[str, float], variants: list[str]) -> str:
-    if len(variants) != 2:
-        return ""
-    m0, m1 = means.get(variants[0], 0), means.get(variants[1], 0)
-    return f"{((m1 - m0) / m0) * 100:+.1f}%" if m0 > 0 else ""
+# --- Judge score loading ---
 
+def _load_judge_raw(results_dir: Path, variants: list[str], task: str
+                    ) -> tuple[dict[tuple[str, str], dict[str, int]], list[str]]:
+    """Load per-epoch judge scores. Returns (epoch_data, evaluator_names)."""
+    # epoch_data: (variant, epoch_str) -> {evaluator_name: score}
+    epoch_data: dict[tuple[str, str], dict[str, int]] = {}
+    all_names: set[str] = set()
 
-def _load_judge_scores(results_dir: Path, variants: list[str], task: str) -> list[SummaryRow]:
-    score_data: dict[str, dict[str, list[int]]] = defaultdict(lambda: defaultdict(list))
     if not results_dir or not results_dir.exists():
-        return []
+        return {}, []
+
     for pattern in ["*.scores.json", "*.judges.json"]:
         for jf in results_dir.glob(pattern):
             stem = jf.stem.replace(".scores", "").replace(".judges", "")
-            # Filter to this task only
             if not stem.startswith(f"{task}_"):
                 continue
             parts = stem.rsplit("_epoch", 1)
             if len(parts) < 2:
                 continue
             name_variant = parts[0]
+            epoch_str = parts[1]
             variant = next((v for v in variants if name_variant.endswith(f"_{v}")), None)
             if not variant:
                 continue
             try:
+                scores = {}
                 for s in json.loads(jf.read_text()):
                     if s.get("score") is not None:
-                        score_data[variant][s["name"]].append(s["score"])
+                        scores[s["name"]] = int(s["score"])
+                        all_names.add(s["name"])
+                epoch_data[(variant, epoch_str)] = scores
             except (json.JSONDecodeError, KeyError):
                 continue
-    if not score_data:
-        return []
-    all_names: set[str] = set()
-    for v_data in score_data.values():
-        all_names.update(v_data.keys())
 
-    def _median(vals: list[int]) -> float:
-        if not vals:
-            return 0
-        s = sorted(vals)
-        return float(s[len(s) // 2])
-
-    return [
-        SummaryRow(
-            metric=name,
-            values={v: _median(score_data.get(v, {}).get(name, [])) for v in variants},
-            delta=_calc_delta(
-                {v: _median(score_data.get(v, {}).get(name, [])) for v in variants},
-                variants,
-            ),
-        )
-        for name in sorted(all_names)
-    ]
+    return epoch_data, sorted(all_names)

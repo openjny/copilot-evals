@@ -115,9 +115,10 @@ def run(task: str | None, epochs: int | None, dry_run: bool, config_dir: str | N
 @main.command()
 @click.option("--run-id", required=True, help="Run ID to analyze")
 @click.option("--output", "-o", type=click.Choice(["table", "json", "markdown"]), default="table", help="Output format")
+@click.option("--aggregate", "-a", type=click.Choice(["paired", "median", "mean"]), default="paired", help="Aggregation method")
 @click.option("--jaeger-url", default=None, help="Jaeger URL (default: http://localhost:16686)")
 @click.option("--config-dir", default=None, type=click.Path(exists=True))
-def analyze(run_id: str, output: str, jaeger_url: str | None, config_dir: str | None) -> None:
+def analyze(run_id: str, output: str, aggregate: str, jaeger_url: str | None, config_dir: str | None) -> None:
     """Analyze traces from a previous eval run."""
     config = load_config(Path(config_dir) if config_dir else None)
     jaeger = jaeger_url or "http://localhost:16686"
@@ -135,7 +136,7 @@ def analyze(run_id: str, output: str, jaeger_url: str | None, config_dir: str | 
 
     results_dir = config.results_dir / run_id
     variant_order = [v.name for v in config.variants]
-    reports = build_report(metrics, results_dir if results_dir.exists() else None, variant_order)
+    reports = build_report(metrics, results_dir if results_dir.exists() else None, variant_order, aggregate)
     if not reports:
         click.echo("No reports generated.", err=True)
         return
