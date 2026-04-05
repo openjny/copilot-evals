@@ -16,8 +16,13 @@ docker/            Container infrastructure
 ├── Dockerfile     Base image: Node 20 + Copilot CLI (version pinned)
 └── entrypoint.sh  Auth merge + setup script execution
 
+docs/              Detailed documentation
+├── architecture.md   Execution flow, Docker design, OTel tracing
+└── configuration.md  eval-config.yaml reference, evaluators, fixtures, hooks
+
 examples/          Eval sets (--config-dir)
-└── azure-skills/  Azure Skills Plugin A/B evaluation
+├── azure-skills/  Azure Skills Plugin A/B evaluation
+└── prompt-language/  English vs Japanese prompt comparison
 ```
 
 ## Commands
@@ -31,12 +36,13 @@ uv run copilot-eval analyze --run-id <id> [-o table|json|markdown]
 
 ## Conventions
 
-- **Tasks** (not patterns/scenarios): eval task definitions following Inspect AI/SWE-bench naming
-- **Evaluators**: unified list with `type: judge|script|contains|regex` (replaces separate verify/judges)
+- **Tasks**: eval task definitions with prompt, evaluators, hooks, fixture
+- **Evaluators**: unified list with `type: judge|script|contains|regex`
 - **Hooks**: `before_run`/`after_run` per task for environment setup/teardown
-- **Variants**: A/B environments defined by build scripts + run scripts
-- **Config**: single `eval-config.yaml` with inline tasks/variants (split files also supported)
-- **Vars**: `{key}` interpolation in prompts from `vars:` section
+- **Variants**: A/B environments defined by Dockerfile + run_script
+- **Config**: single `eval-config.yaml` with inline tasks/variants
+- **Vars**: `{key}` interpolation in prompts; merged global → task → variant
+- **Output dir**: Copilot writes artifacts to `/workspace/output/`; judge evaluator reads them
 
 ## Critical: COPILOT_HOME
 

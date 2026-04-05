@@ -4,199 +4,72 @@ A/B evaluation framework for [GitHub Copilot CLI](https://docs.github.com/copilo
 
 Measure the effect of plugins, custom instructions, MCP servers, and other Copilot customizations with reproducible, containerized eval runs and automated analysis.
 
-## How it works
-
-```
-eval-config.yaml          Define vars, model, timeouts
-  + tasks/*.yaml        Define eval tasks (prompts, verification, LLM-as-Judge)
-  + variants/*.yaml         Define A/B environments (e.g. baseline vs plugin)
-       ↓
-  python -m eval build     Build Docker images per variant
-  python -m eval run       Execute A/B in disposable containers → OTel → Jaeger
-  python -m eval analyze   Compare traces: turns, tokens, tools, judge scores
-```
-
-Each eval run:
-1. Spins up a **disposable Docker container** per variant (clean Copilot state every time)
-2. Runs `copilot -p "prompt" --yolo` with OTel telemetry enabled
-3. Sends traces to **Jaeger** via OTLP
-4. Runs **verification scripts** and **LLM-as-Judge** scoring
-5. Produces A/B comparison reports (table / JSON / Markdown)
-
 ## Quick Start
-
-### Prerequisites
-
-- [Docker](https://docs.docker.com/get-docker/)
-- [uv](https://docs.astral.sh/uv/) (Python package manager)
-- [GitHub Copilot CLI](https://docs.github.com/copilot/concepts/agents/about-copilot-cli) authenticated (`gh auth login`)
-
-### Setup
 
 ```bash
 git clone https://github.com/openjny/copilot-eval.git
 cd copilot-eval
 
-# Start Jaeger (OTel backend)
-docker compose up -d
-
-# Create .env with your credentials
-cp .env.example .env
-# Edit .env as needed
-
-# Install Python dependencies
-uv sync
+# Prerequisites: Docker, uv, gh auth login
+docker compose up -d    # Start Jaeger
+uv sync                 # Install dependencies
+cp .env.example .env    # Configure credentials
 ```
 
-### Run an eval (using the Azure Skills example)
+### Try the prompt-language example
 
 ```bash
-# Build container images for both variants
-uv run python -m eval build --config-dir examples/azure-skills
+# Build images
+uv run copilot-eval build --config-dir examples/prompt-language
 
-# Run the eval (1 epoch by default)
-uv run python -m eval run --config-dir examples/azure-skills --task resource-explorer
+# Run eval (2 tasks × 2 variants × 3 epochs = 12 runs, ~2 min)
+uv run copilot-eval run --config-dir examples/prompt-language
 
-# Analyze results
-uv run python -m eval analyze --run-id <run-id>
-
-# Output as Markdown (for blog posts)
-uv run python -m eval analyze --run-id <run-id> -o markdown
-
-# Output as JSON (for programmatic use)
-uv run python -m eval analyze --run-id <run-id> -o json
+# Analyze
+uv run copilot-eval analyze --run-id <RUN_ID> --config-dir examples/prompt-language -o markdown
 ```
 
-## CLI Reference
+## CLI
 
 ```
-uv run python -m eval <command> [options]
+uv run copilot-eval <command> [options]
 ```
 
 | Command | Description |
 |---------|-------------|
-| `list` | List available tasks and variants |
-| `build` | Build Docker images for all (or specific) variants |
-| `run` | Execute A/B eval runs |
-| `analyze` | Analyze traces from a previous run |
+| `list --config-dir <dir>` | List tasks and variants |
+| `build --config-dir <dir>` | Build Docker images |
+| `run --config-dir <dir> [--task NAME] [--epochs N]` | Execute eval runs |
+| `analyze --run-id <ID> [--config-dir <dir>] [-o table\|json\|markdown]` | Analyze results |
 
-### `run` options
+## Examples
 
-| Flag | Description | Default |
-|------|-------------|---------|
-| `--task` / `-p` | Run a specific task | All enabled |
-| `--epochs` / `-n` | Number of repetitions | 1 |
-| `--dry-run` | Show plan without executing | — |
-| `--config-dir` | Directory with eval-config.yaml | Project root |
+| Example | What it evaluates |
+|---------|-------------------|
+| [prompt-language](examples/prompt-language/) | English vs Japanese prompts on code tasks |
+| [azure-skills](examples/azure-skills/) | Azure Skills Plugin impact on Azure operations |
 
-### `analyze` options
+## Documentation
 
-| Flag | Description | Default |
-|------|-------------|---------|
-| `--run-id` | Run ID to analyze (required) | — |
-| `--output` / `-o` | Output format: `table`, `json`, `markdown` | `table` |
-| `--jaeger-url` | Jaeger API URL | `http://localhost:16686` |
+- [Configuration Guide](docs/configuration.md) — eval-config.yaml, evaluators, fixtures, hooks, parallel modes
+- [Architecture](docs/architecture.md) — execution flow, Docker design, OTel tracing, report generation
 
 ## Project Structure
 
 ```
 copilot-eval/
-├── eval/                      # Framework (cloud-agnostic)
-│   ├── cli.py                 # CLI entry point
-│   ├── config.py              # Config loading + validation
-│   ├── runner.py              # Docker container execution
-│   ├── trace.py               # Jaeger API + span parsing
-│   └── report.py              # A/B comparison (table/json/md)
+├── eval/                  # Framework
+│   ├── cli.py             # CLI entry point
+│   ├── config.py          # Config loading
+│   ├── runner.py          # Docker execution + evaluators
+│   ├── trace.py           # Jaeger trace parsing
+│   └── report.py          # A/B comparison reports
 ├── docker/
-│   ├── Dockerfile             # Base image (Copilot CLI only)
-│   └── entrypoint.sh          # Auth merging + setup script
-├── eval-config.yaml           # Default config
-├── examples/
-│   └── azure-skills/          # Example: Azure Skills Plugin eval
-│       ├── eval-config.yaml
-│       ├── tasks/
-│       ├── variants/
-│       ├── scripts/
-│       └── setup/
-├── pyproject.toml
-└── docker-compose.yml         # Jaeger
-```
-
-## Creating Your Own Eval
-
-### 1. Create a config directory
-
-```
-my-eval/
-├── eval-config.yaml
-├── tasks/
-│   └── my-task.yaml
-└── variants/
-    ├── baseline.yaml
-    └── my-customization.yaml
-```
-
-### 2. Define your config
-
-```yaml
-# my-eval/eval-config.yaml
-vars:
-  project_name: my-project
-
-runner:
-  model: claude-sonnet-4
-  epochs: 1
-  timeout_seconds: 120
-```
-
-### 3. Define a task
-
-```yaml
-# my-eval/tasks/my-task.yaml
-name: my-task
-type: read
-enabled: true
-prompt: "Explain the architecture of {project_name}"
-
-metrics:
-  judges:
-    - name: accuracy
-      prompt: |
-        Rate accuracy on a scale of 1-5.
-        Output ONLY JSON: {"score": N, "reason": "..."}
-```
-
-### 4. Define variants
-
-```yaml
-# my-eval/variants/baseline.yaml
-name: baseline
-description: "Default Copilot CLI"
-
-# my-eval/variants/my-customization.yaml
-name: my-customization
-description: "Copilot CLI with my plugin"
-build:
-  script: my-eval/variants/scripts/setup.sh
-```
-
-### 5. Run
-
-```bash
-uv run python -m eval build --config-dir my-eval
-uv run python -m eval run --config-dir my-eval
-```
-
-## How OTel Tracing Works
-
-Copilot CLI emits OpenTelemetry spans for each agent session:
-
-```
-invoke_agent (root)
-  ├── chat {model}          # LLM API call
-  ├── execute_tool {name}   # Tool execution
-  │   └── permission        # Permission check
-  └── chat {model}          # Next LLM turn
+│   ├── Dockerfile         # Base image (Node 20 + Copilot CLI)
+│   └── entrypoint.sh      # Auth merging
+├── examples/              # Eval sets
+├── docs/                  # Detailed documentation
+└── docker-compose.yml     # Jaeger
 ```
 
 The framework tags each run with `eval.test_id`, `eval.variant`, `eval.scenario`, and `eval.epoch` via `OTEL_RESOURCE_ATTRIBUTES`, enabling A/B comparison in Jaeger.
