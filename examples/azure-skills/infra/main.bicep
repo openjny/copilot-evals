@@ -1,5 +1,5 @@
-// Pattern 1: Resource Explorer — Azure fixture
-// Deploys a known set of resources for Copilot to discover and describe.
+// Azure Skills Plugin eval — baseline Azure environment
+// Deploys a set of resources for Copilot to discover, deploy to, and diagnose.
 // Policy-compliant: Private Endpoints, HTTPS-only, Entra auth for SQL.
 
 targetScope = 'resourceGroup'
