@@ -12,6 +12,7 @@ class RunnerConfig:
     epochs: int = 1
     timeout_seconds: int = 300
     model: str | None = None
+    judge_model: str | None = None
     reasoning_effort: str | None = None
     max_turns: int | None = None
     parallel: str = "off"  # off | per_task | full
@@ -124,6 +125,7 @@ def load_config(config_dir: Path | None = None) -> Config:
         epochs=runner_raw.get("epochs", 1),
         timeout_seconds=runner_raw.get("timeout_seconds", 300),
         model=runner_raw.get("model"),
+        judge_model=runner_raw.get("judge_model"),
         reasoning_effort=runner_raw.get("reasoning_effort"),
         max_turns=runner_raw.get("max_turns"),
         parallel=runner_raw.get("parallel", "off"),

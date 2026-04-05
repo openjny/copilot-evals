@@ -172,7 +172,7 @@ def _run_evaluators(task: Task, variant: Variant, config: Config, log_file: Path
     for ev in task.evaluators:
         s = None
         if ev.type == "judge":
-            s = _eval_judge(ev, log_file, token)
+            s = _eval_judge(ev, config, log_file, token)
         elif ev.type == "script":
             s = _eval_script(ev, config, task, variant, log_file)
         elif ev.type == "contains":
@@ -190,7 +190,7 @@ def _run_evaluators(task: Task, variant: Variant, config: Config, log_file: Path
     return scores
 
 
-def _eval_judge(ev: Evaluator, log_file: Path, token: str) -> EvalScore | None:
+def _eval_judge(ev: Evaluator, config: Config, log_file: Path, token: str) -> EvalScore | None:
     if not ev.prompt:
         return None
     output = _read_log(log_file, max_chars=8000)
@@ -198,12 +198,13 @@ def _eval_judge(ev: Evaluator, log_file: Path, token: str) -> EvalScore | None:
         return None
     prompt = f"You are an eval judge. Score the following Copilot output.\n\n{ev.prompt}\n\n--- COPILOT OUTPUT ---\n{output}\n--- END OUTPUT ---\n\nOutput ONLY valid JSON: {{\"score\": N, \"reason\": \"...\"}}"
     print(f"    Evaluating: {ev.name} (judge)...")
+    cmd = ["copilot", "-p", prompt, "-s"]
+    if config.runner.judge_model:
+        cmd.extend(["--model", config.runner.judge_model])
+    # Disable OTel to avoid contaminating eval traces with judge calls
+    judge_env = {**os.environ, "GITHUB_TOKEN": token, "COPILOT_OTEL_ENABLED": "false"}
     try:
-        proc = subprocess.run(
-            ["copilot", "-p", prompt, "-s"],
-            capture_output=True, text=True, timeout=60,
-            env={**os.environ, "GITHUB_TOKEN": token},
-        )
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=60, env=judge_env)
     except (subprocess.TimeoutExpired, FileNotFoundError):
         return EvalScore(name=ev.name, type="judge", score=None, reason="timeout")
     data = _parse_json(proc.stdout)
