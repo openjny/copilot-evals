@@ -167,23 +167,24 @@ def format_table(reports: list[Report]) -> str:
         lines.append(f"TASK: {report.task}")
         lines.append("=" * 80)
 
-        # Per-run header
+        # Per-run header — column order matches _METRIC_DEFS
         jnames = report.judge_names
         jhdr = "".join(f" {n[:8]:>8}" for n in jnames)
         lines.append(
-            f"\n{'Variant':<18} {'Epoch':>5} {'Turns':>5} {'Dur(s)':>7} "
-            f"{'Tools':>5} {'In Tok':>8} {'Out Tok':>8}{jhdr}"
+            f"\n{'Variant':<18} {'Epoch':>5} {'Dur(s)':>7} {'Turns':>5} {'Spans':>5} "
+            f"{'Tools':>5} {'In Tok':>8} {'Out Tok':>8} {'Cache':>8} {'TDur(s)':>7}{jhdr}"
         )
-        lines.append("-" * (60 + 9 * len(jnames)))
+        lines.append("-" * (80 + 9 * len(jnames)))
         for r in report.runs:
             jvals = ""
             for n in jnames:
                 s = report.epoch_judges.get((r.variant, r.epoch), {}).get(n)
                 jvals += f" {s:>8}" if s is not None else f" {'—':>8}"
             lines.append(
-                f"{r.variant:<18} {r.epoch:>5} {r.turn_count:>5} "
-                f"{r.duration:>7.1f} {r.tool_count:>5} "
-                f"{r.total_input_tokens:>8} {r.total_output_tokens:>8}{jvals}"
+                f"{r.variant:<18} {r.epoch:>5} {r.duration:>7.1f} {r.turn_count:>5} "
+                f"{r.total_spans:>5} {r.tool_count:>5} "
+                f"{r.total_input_tokens:>8} {r.total_output_tokens:>8} "
+                f"{r.total_cache_tokens:>8} {r.tool_duration:>7.1f}{jvals}"
             )
 
         # Summary
@@ -263,20 +264,21 @@ def format_markdown(reports: list[Report]) -> str:
                 cols = "".join(f" {row.values.get(v, 0):.1f} |" for v in report.variants)
                 lines.append(f"| {row.metric} |{cols} {row.delta} |")
 
-        # Per-run details with judge columns
+        # Per-run details — column order matches _METRIC_DEFS
         jnames = report.judge_names
         lines.append("\n### Per-Run Details\n")
         jhdr = "".join(f" {n} |" for n in jnames)
         jsep = "".join("------:|" for _ in jnames)
-        lines.append(f"| Variant | Epoch | Turns | Duration | Tools | In Tok | Out Tok |{jhdr}")
-        lines.append(f"|---------|------:|------:|---------:|------:|-------:|--------:|{jsep}")
+        lines.append(f"| Variant | Epoch | Dur(s) | Turns | Spans | Tools | In Tok | Out Tok | Cache | TDur(s) |{jhdr}")
+        lines.append(f"|---------|------:|-------:|------:|------:|------:|-------:|--------:|------:|--------:|{jsep}")
         for r in report.runs:
             jvals = ""
             for n in jnames:
                 s = report.epoch_judges.get((r.variant, r.epoch), {}).get(n)
                 jvals += f" {s} |" if s is not None else " — |"
-            lines.append(f"| {r.variant} | {r.epoch} | {r.turn_count} | {r.duration:.1f}s | "
-                         f"{r.tool_count} | {r.total_input_tokens} | {r.total_output_tokens} |{jvals}")
+            lines.append(f"| {r.variant} | {r.epoch} | {r.duration:.1f} | {r.turn_count} | "
+                         f"{r.total_spans} | {r.tool_count} | {r.total_input_tokens} | "
+                         f"{r.total_output_tokens} | {r.total_cache_tokens} | {r.tool_duration:.1f} |{jvals}")
 
         sections.append("\n".join(lines))
     return "\n\n---\n\n".join(sections)
