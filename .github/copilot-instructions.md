@@ -1,4 +1,4 @@
-# copilot-evals
+# copilot-eval
 
 A/B evaluation framework for GitHub Copilot CLI customizations using OpenTelemetry.
 

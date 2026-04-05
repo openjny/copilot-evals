@@ -1,4 +1,4 @@
-# copilot-evals
+# copilot-eval
 
 A/B evaluation framework for [GitHub Copilot CLI](https://docs.github.com/copilot/concepts/agents/about-copilot-cli) customizations using [OpenTelemetry](https://opentelemetry.io/) telemetry.
 
@@ -34,8 +34,8 @@ Each eval run:
 ### Setup
 
 ```bash
-git clone https://github.com/openjny/copilot-evals.git
-cd copilot-evals
+git clone https://github.com/openjny/copilot-eval.git
+cd copilot-eval
 
 # Start Jaeger (OTel backend)
 docker compose up -d
@@ -100,7 +100,7 @@ uv run python -m eval <command> [options]
 ## Project Structure
 
 ```
-copilot-evals/
+copilot-eval/
 ├── eval/                      # Framework (cloud-agnostic)
 │   ├── cli.py                 # CLI entry point
 │   ├── config.py              # Config loading + validation
