@@ -155,84 +155,79 @@ Each Copilot CLI execution runs in an isolated Docker container. Containers are 
 
 ## Results
 
-Full eval run: 3 tasks × 2 variants × 3 epochs = 18 runs, model: claude-sonnet-4.
+Full eval run: 3 tasks × 2 variants × 3 epochs = 18 runs, model: claude-sonnet-4. Aggregation: paired comparison (per-epoch delta → median).
 
-### Task: compliance-audit
+### compliance-audit
 
-| Metric | baseline | azure-skills | Delta |
+| Metric | baseline | azure-skills | Δ (paired) |
 |--------|--------:|--------:|------:|
-| Duration (s) | 165.0 | 183.4 | +11.2% |
-| Turns | 13 | 15 | +15.4% |
-| Tool calls | 27 | 29 | +7.4% |
-| Tool duration (s) | 36.0 | 54.5 | +51.4% |
-| Input tokens | 356K | 860K | +141.6% |
-| Output tokens | 6,731 | 7,084 | +5.2% |
+| Duration (s) | 142.8 | 186.7 | +48.1% |
+| Turns | 12 | 20 | +66.7% |
+| Tool calls | 29 | 23 | +3.4% |
+| Tool duration (s) | 39.0 | 49.7 | +56.6% |
+| Input tokens | 304K | 1,074K | +253.0% |
+| Output tokens | 6,127 | 5,965 | +14.0% |
 
-Tool patterns: azure-skills uses `azure-extension_azqr` for bulk security review + `bash` for granular checks. baseline uses only `bash` + `sql`.
+**Tools**: baseline uses `bash`(64) + `sql`(9). azure-skills adds `azure-extension_azqr`(3), `azure-group_resource_list`(3).
 
-| Evaluator | baseline | azure-skills | Winner |
+| Evaluator | baseline | azure-skills | Δ |
 |-----------|:-----------:|:--------:|--------|
-| methodology | **8** | 7 | baseline |
-| coverage | **8** | 6 | baseline |
-| finding_accuracy | **7** | 5 | baseline |
-| remediation_quality | **7** | 4 | baseline |
-| verify | 1 | 1 | tie |
+| coverage | 7 | 7 | 0% |
+| accuracy | 5 | **6** | +20% |
+| remediation | 6 | 6 | -17% |
 
-**Takeaway**: baseline's per-resource `az` CLI inspection is more thorough. azure-skills' MCP bulk tools miss granular settings.
+**Takeaway**: Near-parity on quality. azure-skills slightly better on accuracy (+20% paired delta), using MCP's `azqr` tool for structured checks. Baseline is faster and uses 3× fewer input tokens.
 
-### Task: app-deploy
+### app-deploy
 
-| Metric | baseline | azure-skills | Delta |
+| Metric | baseline | azure-skills | Δ (paired) |
 |--------|--------:|--------:|------:|
-| Duration (s) | 295.8 | **130.4** | -55.9% |
-| Turns | 33 | **9** | -72.7% |
-| Tool calls | 37 | **18** | -51.4% |
-| Tool duration (s) | 180.6 | **17.9** | -90.1% |
-| Input tokens | 857K | 525K | -38.7% |
-| Output tokens | 4,695 | 5,139 | +9.5% |
+| Duration (s) | 296.1 | **142.9** | -32.2% |
+| Turns | 14 | 13 | -64.3% |
+| Tool calls | 19 | 20 | -36.8% |
+| Tool duration (s) | 236.7 | **18.4** | -53.4% |
+| Input tokens | 332K | 803K | +33.3% |
+| Output tokens | 2,636 | 5,233 | +5.3% |
 
-Tool patterns: azure-skills uses `azure-appservice` MCP tool for deploy. baseline relies on lengthy `bash` trial-and-error.
+**Tools**: baseline uses `bash`(47) with lengthy trial-and-error. azure-skills finishes faster with fewer retries.
 
-| Evaluator | baseline | azure-skills | Winner |
+| Evaluator | baseline | azure-skills | Δ |
 |-----------|:-----------:|:--------:|--------|
-| deployment_approach | 3 | **4** | azure-skills |
-| completeness | **3** | 2 | baseline |
-| verification | **7** | 1 | baseline |
-| verify | 0 | 0 | tie |
+| approach | 5 | **7** | +40% |
+| deploy_success | 1 | 1 | 0% |
+| post_check | **9** | 1 | -89% |
 
-**Takeaway**: azure-skills is dramatically faster (130s vs 296s, 10× faster tool execution) with structured deploy workflow. However, baseline actually verifies deployment (7 vs 1). Neither achieves `verify` PASS consistently.
+**Takeaway**: azure-skills has clearly better deployment approach (7 vs 5) and is 2× faster. But baseline excels at post-deployment verification (9 vs 1) — it actually checks the app is running. Both successfully deploy (deploy_success = 1).
 
-### Task: diagnostics
+### diagnostics
 
-| Metric | baseline | azure-skills | Delta |
+| Metric | baseline | azure-skills | Δ (paired) |
 |--------|--------:|--------:|------:|
-| Duration (s) | **157.2** | 287.4 | +82.8% |
-| Turns | 17 | 18 | +5.9% |
-| Tool calls | 32 | 34 | +6.3% |
-| Tool duration (s) | **85.4** | 216.5 | +153.5% |
-| Input tokens | 440K | 1,100K | +150.0% |
-| Output tokens | 4,432 | 5,322 | +20.1% |
+| Duration (s) | 230.9 | 286.9 | +24.0% |
+| Turns | 18 | 15 | -33.3% |
+| Tool calls | 37 | 35 | -10.8% |
+| Tool duration (s) | 107.1 | 211.6 | +127.2% |
+| Input tokens | 523K | 899K | +44.9% |
+| Output tokens | 6,643 | 6,317 | -1.7% |
 
-Tool patterns: azure-skills uses `azure-applens`(6), `azure-resourcehealth`(6), `azure-applicationinsights`(3) for structured diagnostics. baseline uses `bash` commands directly.
+**Tools**: azure-skills uses `azure-appservice`(22), `azure-resourcehealth`(6), `azure-applens`(6), `azure-monitor`(5) — rich MCP diagnostic sources. baseline relies on `bash`(89).
 
-| Evaluator | baseline | azure-skills | Winner |
+| Evaluator | baseline | azure-skills | Δ |
 |-----------|:-----------:|:--------:|--------|
-| diagnostic_depth | **6** | 5 | baseline |
-| tool_usage | **7** | 6 | baseline |
-| root_cause | 2 | 2 | tie |
-| actionability | 2 | 2 | tie |
-| verify | 1 | 1 | tie |
+| breadth | 5 | **7** | +40% |
+| evidence | 6 | **7** | +17% |
+| root_cause | **5** | 2 | -60% |
 
-**Takeaway**: Closest results. azure-skills is slower (MCP tool startup overhead) but uses richer diagnostic sources. Neither variant reliably identifies root cause (both 2/10).
+**Takeaway**: Most interesting results. azure-skills uses richer data sources (breadth 7 vs 5, evidence 7 vs 6) via MCP tools, but baseline is better at identifying root cause (5 vs 2). MCP provides structured access to diagnostic data, but the `azure-compliance` skill doesn't guide toward root cause identification as effectively as manual `az` CLI investigation.
 
 ### Key Insights
 
-1. **Task type determines plugin value**: azure-skills excels at structured workflows (app-deploy: 56% faster) but underperforms on open-ended investigation (compliance-audit, diagnostics).
+1. **compliance-audit: near-parity**. Similar scores, but azure-skills uses 3× more input tokens for marginal accuracy improvement. The plugin doesn't provide a clear advantage on compliance tasks.
 
-2. **MCP tools trade latency for structure**: MCP tools add startup overhead (diagnostics: 217s vs 85s tool duration) but reduce turns and provide structured data. The trade-off is favorable for deploy, unfavorable for diagnostics.
+2. **app-deploy: plugin wins on approach, loses on verification**. azure-skills' structured workflow (approach 7 vs 5) and speed (143s vs 296s) are clear wins. The gap is in post-deployment checking (1 vs 9) — the plugin deploys but doesn't verify.
 
-3. **verification is the biggest gap**: baseline scores 7 vs 1 on app-deploy verification — a potential gap in the `azure-deploy` skill's workflow.
+3. **diagnostics: breadth vs depth trade-off**. azure-skills gathers more evidence from more sources (MCP tools), but baseline's manual investigation is better at pinpointing root cause (5 vs 2). This suggests MCP tools surface data well but the Skills layer doesn't synthesize it into conclusions.
 
-4. **Input token cost scales with MCP**: azure-skills uses 2-3× more input tokens across all tasks due to MCP tool descriptions + skill definitions in context.
+4. **Token cost is significant**. azure-skills consistently uses 2-3× more input tokens due to MCP tool definitions + skill content loaded into context. This is a real cost concern for production use.
 
-5. **root_cause is unsolved**: both variants score 2/10 on diagnostics root_cause — the intentional issues (wrong startup command + missing module) are hard to identify regardless of tooling.
+5. **Termination conditions helped**. Prompts now include "write to /workspace/*.md when done," which reduced run-to-run variance compared to previous results.
