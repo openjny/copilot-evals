@@ -11,8 +11,6 @@ git clone https://github.com/openjny/copilot-eval.git
 cd copilot-eval
 
 # Prerequisites: Docker, uv, gh auth login
-docker compose up -d    # Start Jaeger
-uv sync                 # Install dependencies
 cp .env.example .env    # Configure credentials
 ```
 

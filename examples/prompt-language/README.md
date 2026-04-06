@@ -16,7 +16,6 @@ Compares English vs Japanese prompts on identical code tasks.
 
 ```bash
 uv run copilot-eval build --config-dir examples/prompt-language
-docker compose up -d
 uv run copilot-eval run --config-dir examples/prompt-language
 uv run copilot-eval analyze --run-id <RUN_ID> --config-dir examples/prompt-language -o markdown
 ```

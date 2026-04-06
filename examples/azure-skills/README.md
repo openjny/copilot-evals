@@ -34,7 +34,6 @@ Measures the impact of [Azure Skills Plugin](https://github.com/microsoft/azure-
 
 ```bash
 uv run copilot-eval build --config-dir examples/azure-skills
-docker compose up -d
 uv run copilot-eval run --config-dir examples/azure-skills --epochs 3
 uv run copilot-eval analyze --run-id <RUN_ID> -o markdown
 ```
