@@ -43,15 +43,27 @@ Model: claude-sonnet-4, 3 tasks × 2 variants × 3 epochs = 18 runs.
 
 ### compliance-audit
 
+| Metric | baseline | azure-skills | Δ |
+|--------|--------:|--------:|------:|
+| Duration (s) | **143** | 187 | +48% |
+| Input tokens | **304K** | 1,074K | +253% |
+| Output tokens | 6,127 | 5,965 | +14% |
+
 | Evaluator | baseline | azure-skills | Δ |
 |-----------|:---:|:---:|---|
 | coverage | 7 | 7 | 0% |
 | accuracy | 5 | **6** | +20% |
 | remediation | 6 | 6 | -17% |
 
-Near-parity. azure-skills uses MCP's `azqr` for structured checks but costs 3× more input tokens.
+Near-parity on quality. azure-skills uses MCP's `azqr` for structured checks but costs 3× more input tokens.
 
 ### app-deploy
+
+| Metric | baseline | azure-skills | Δ |
+|--------|--------:|--------:|------:|
+| Duration (s) | 296 | **143** | -32% |
+| Input tokens | 332K | 803K | +33% |
+| Output tokens | 2,636 | 5,233 | +5% |
 
 | Evaluator | baseline | azure-skills | Δ |
 |-----------|:---:|:---:|---|
@@ -62,6 +74,12 @@ Near-parity. azure-skills uses MCP's `azqr` for structured checks but costs 3× 
 azure-skills is 2× faster with better approach, but baseline excels at post-deployment verification.
 
 ### diagnostics
+
+| Metric | baseline | azure-skills | Δ |
+|--------|--------:|--------:|------:|
+| Duration (s) | **231** | 287 | +24% |
+| Input tokens | 523K | 899K | +45% |
+| Output tokens | 6,643 | 6,317 | -2% |
 
 | Evaluator | baseline | azure-skills | Δ |
 |-----------|:---:|:---:|---|
