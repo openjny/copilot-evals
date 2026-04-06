@@ -31,11 +31,15 @@ Model: gpt-5.4-mini, judge: claude-sonnet-4.6, 2 tasks × 2 variants × 3 epochs
 |--------|--------:|--------:|------:|
 | Duration (s) | **24.6** | 31.9 | +23.5% |
 | Input tokens | **92K** | 130K | +39.8% |
+| Output tokens | **1,247** | 1,542 | +10.9% |
 
 | Evaluator | english | japanese | Δ |
 |-----------|:---:|:---:|---|
 | thoroughness | 9 | **10** | +11% |
 | actionability | 7 | 7 | 0% |
+
+- **thoroughness**: English finds 5-6 of 7 issues. Japanese finds up to 7/7 (eval RCE, plaintext passwords, missing auth, no input validation, no rate limiting, etc.)
+- **actionability**: Both provide file/line references. English tends to have fewer concrete fix code examples
 
 ### explain-architecture
 
@@ -43,11 +47,15 @@ Model: gpt-5.4-mini, judge: claude-sonnet-4.6, 2 tasks × 2 variants × 3 epochs
 |--------|--------:|--------:|------:|
 | Duration (s) | **19.6** | 25.1 | +14.6% |
 | Input tokens | **92K** | 112K | +20.9% |
+| Output tokens | **1,235** | 1,986 | +46.2% |
 
 | Evaluator | english | japanese | Δ |
 |-----------|:---:|:---:|---|
 | completeness | **10** | 8 | -10% |
 | clarity | 9 | 9 | 0% |
+
+- **completeness**: English consistently covers all 5 components (Express setup, in-memory store, CRUD endpoints, search endpoint, server listener). Japanese sometimes misses the search endpoint details
+- **clarity**: Both produce well-structured output with clear headings and logical flow — no meaningful difference
 
 ### Takeaways
 
