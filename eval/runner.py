@@ -126,6 +126,9 @@ def run_one(
 
         _run_hook(task.hooks.after_run, config, task, variant, log_file, "after_run")
 
+        # Persist output files to results dir before tmpdir cleanup
+        _persist_output_files(work_dir, run_dir, task.name, variant.name, epoch)
+
         scores = _run_evaluators(task, variant, config, log_file, github_token, work_dir)
         _print_scores(scores)
     finally:
@@ -170,12 +173,30 @@ def _run_health_check(script: str, config: Config, task: Task, variant: Variant,
     return proc.returncode == 0
 
 
+def _persist_output_files(work_dir: Path, run_dir: Path, task: str, variant: str, epoch: int) -> None:
+    """Copy output files from tmpdir to results dir for later analysis."""
+    output_dir = work_dir / "output"
+    if not output_dir.is_dir():
+        return
+    files = [f for f in output_dir.rglob("*") if f.is_file()]
+    if not files:
+        return
+    dest = run_dir / "outputs" / f"{task}_{variant}_epoch{epoch}"
+    dest.mkdir(parents=True, exist_ok=True)
+    for f in files:
+        rel = f.relative_to(output_dir)
+        target = dest / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(f, target)
+
+
 def _run_evaluators(task: Task, variant: Variant, config: Config, log_file: Path, token: str, work_dir: Path | None = None) -> list[EvalScore]:
+    """Run non-judge evaluators (script, contains, regex). Judge runs in analyze."""
     scores: list[EvalScore] = []
     for ev in task.evaluators:
         s = None
         if ev.type == "judge":
-            s = _eval_judge(ev, config, log_file, token, work_dir)
+            continue  # Judge evaluators run in `analyze` command
         elif ev.type == "script":
             s = _eval_script(ev, config, task, variant, log_file)
         elif ev.type == "contains":

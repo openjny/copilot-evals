@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+import json
+
 import requests
 
 
@@ -122,3 +124,65 @@ def extract_metrics(trace: Trace) -> RunMetrics | None:
         model=str(root.tags.get("gen_ai.request.model", "?")),
         cost=str(root.tags.get("github.copilot.cost", "?")),
     )
+
+
+def extract_conversation(trace: Trace, max_chars: int = 8000) -> str | None:
+    """Extract conversation text from OTel trace (requires capture_content=true).
+
+    Reads gen_ai.output.messages from chat spans to reconstruct the assistant's
+    responses. Falls back to None if content capture was disabled.
+    """
+    chats = trace.chats
+    if not chats:
+        return None
+
+    parts: list[str] = []
+    total = 0
+    for span in sorted(chats, key=lambda s: s.span_id):
+        # Output messages (assistant responses + tool calls)
+        output_raw = span.tags.get("gen_ai.output.messages")
+        if output_raw:
+            text = _parse_messages(str(output_raw))
+            if text:
+                if total + len(text) > max_chars:
+                    remaining = max_chars - total
+                    if remaining > 0:
+                        parts.append(text[:remaining] + "\n... (truncated)")
+                    break
+                parts.append(text)
+                total += len(text)
+
+    return "\n\n".join(parts) if parts else None
+
+
+def _parse_messages(raw: str) -> str | None:
+    """Parse gen_ai.input/output.messages JSON into readable text."""
+    try:
+        messages = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        return None
+    if not isinstance(messages, list):
+        return None
+
+    parts: list[str] = []
+    for msg in messages:
+        if not isinstance(msg, dict):
+            continue
+        role = msg.get("role", "")
+        # Text content
+        content = msg.get("content")
+        if content and isinstance(content, str):
+            parts.append(content)
+        elif content and isinstance(content, list):
+            for item in content:
+                if isinstance(item, dict) and item.get("text"):
+                    parts.append(item["text"])
+        # Tool call results
+        tool_calls = msg.get("tool_calls")
+        if tool_calls and isinstance(tool_calls, list):
+            for tc in tool_calls:
+                if isinstance(tc, dict):
+                    fn = tc.get("function", {})
+                    name = fn.get("name", "?")
+                    parts.append(f"[tool_call: {name}]")
+    return "\n".join(parts) if parts else None

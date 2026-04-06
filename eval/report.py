@@ -27,6 +27,8 @@ class Report:
     judge_scores: list[SummaryRow] = field(default_factory=list)
     # Per-epoch judge scores: key = (variant, epoch_str) -> {evaluator: score}
     epoch_judges: dict[tuple[str, str], dict[str, int]] = field(default_factory=dict)
+    # Per-epoch judge reasons: key = (variant, epoch_str) -> {evaluator: reason}
+    epoch_reasons: dict[tuple[str, str], dict[str, str]] = field(default_factory=dict)
     judge_names: list[str] = field(default_factory=list)
     aggregate: str = "paired"
 
@@ -130,11 +132,12 @@ def build_report(results: list[RunMetrics], results_dir: Path | None = None,
             tool_patterns[v] = dict(counts)
 
         # Judge scores (both aggregated + per-epoch)
-        epoch_judges, judge_names = {}, []
+        epoch_judges, epoch_reasons, judge_names = {}, {}, []
         judge_rows: list[SummaryRow] = []
         if results_dir:
-            raw, names = _load_judge_raw(results_dir, variants, task_name)
+            raw, reasons, names = _load_judge_raw(results_dir, variants, task_name)
             epoch_judges = raw
+            epoch_reasons = reasons
             judge_names = names
             # Aggregate judge scores
             for name in names:
@@ -151,6 +154,7 @@ def build_report(results: list[RunMetrics], results_dir: Path | None = None,
             task=task_name, runs=task_runs, variants=variants,
             summary=summary, tool_patterns=tool_patterns,
             judge_scores=judge_rows, epoch_judges=epoch_judges,
+            epoch_reasons=epoch_reasons,
             judge_names=judge_names, aggregate=aggregate,
         ))
 
@@ -280,6 +284,20 @@ def format_markdown(reports: list[Report]) -> str:
                          f"{r.total_spans} | {r.tool_count} | {r.total_input_tokens} | "
                          f"{r.total_output_tokens} | {r.total_cache_tokens} | {r.tool_duration:.1f} |{jvals}")
 
+        # Judge reasons
+        if report.epoch_reasons:
+            lines.append("\n### Judge Reasons\n")
+            for r in report.runs:
+                reasons = report.epoch_reasons.get((r.variant, r.epoch), {})
+                if reasons:
+                    lines.append(f"**{r.variant} epoch {r.epoch}**:")
+                    for n in report.judge_names:
+                        reason = reasons.get(n, "")
+                        score = report.epoch_judges.get((r.variant, r.epoch), {}).get(n)
+                        if reason:
+                            lines.append(f"- {n} ({score}): {reason}")
+                    lines.append("")
+
         sections.append("\n".join(lines))
     return "\n\n---\n\n".join(sections)
 
@@ -287,14 +305,14 @@ def format_markdown(reports: list[Report]) -> str:
 # --- Judge score loading ---
 
 def _load_judge_raw(results_dir: Path, variants: list[str], task: str
-                    ) -> tuple[dict[tuple[str, str], dict[str, int]], list[str]]:
-    """Load per-epoch judge scores. Returns (epoch_data, evaluator_names)."""
-    # epoch_data: (variant, epoch_str) -> {evaluator_name: score}
+                    ) -> tuple[dict[tuple[str, str], dict[str, int]], dict[tuple[str, str], dict[str, str]], list[str]]:
+    """Load per-epoch judge scores and reasons. Returns (epoch_data, epoch_reasons, evaluator_names)."""
     epoch_data: dict[tuple[str, str], dict[str, int]] = {}
+    epoch_reasons: dict[tuple[str, str], dict[str, str]] = {}
     all_names: set[str] = set()
 
     if not results_dir or not results_dir.exists():
-        return {}, []
+        return {}, {}, []
 
     for pattern in ["*.scores.json", "*.judges.json"]:
         for jf in results_dir.glob(pattern):
@@ -311,12 +329,15 @@ def _load_judge_raw(results_dir: Path, variants: list[str], task: str
                 continue
             try:
                 scores = {}
+                reasons = {}
                 for s in json.loads(jf.read_text()):
                     if s.get("score") is not None:
                         scores[s["name"]] = int(s["score"])
+                        reasons[s["name"]] = str(s.get("reason", ""))
                         all_names.add(s["name"])
                 epoch_data[(variant, epoch_str)] = scores
+                epoch_reasons[(variant, epoch_str)] = reasons
             except (json.JSONDecodeError, KeyError):
                 continue
 
-    return epoch_data, sorted(all_names)
+    return epoch_data, epoch_reasons, sorted(all_names)
